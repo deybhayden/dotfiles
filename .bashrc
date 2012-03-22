@@ -18,13 +18,21 @@ export BC="svn+ssh://svn/srv/svnroot/britecore"
 export BC_OLD="svn+ssh://svn/srv/svnroot/britecore_old"
 export IQ="svn+ssh://svn/srv/svnroot/iwsquotes"
 
-# Path Updates
-if [[ $OSTYPE == 'linux-gnu' ]]; then
+# Operation System Specific Setup
+if [ $OSTYPE == 'linux-gnu' ]; then
     # Linux Specific Paths
     export PATH="/opt/go/bin/:/opt/go/pkg/tool/linux_amd64/:/usr/local/bin/:${PATH}"
-elif [[ $OSTYPE == 'darwin10.0' ]]; then
+    # Enable Bash Completion
+    if [ -f /etc/bash_completion ]; then
+        . /etc/bash_completion
+    fi
+elif [ $OSTYPE == 'darwin10.0' ]; then
     # Mac OS X Paths
     export PATH="$(brew --prefix coreutils)/libexec/gnubin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:${PATH}"
+    # Enable Bash Completion
+    if [ -f `brew --prefix`/etc/bash_completion ]; then
+        . `brew --prefix`/etc/bash_completion
+    fi
 fi
 
 # Aliases
