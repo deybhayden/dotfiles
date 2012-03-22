@@ -1,0 +1,6 @@
+[submodule "VimConf"]
+	path = VimConf
+	url = git://github.com/beardedprojamz/VimConf.git
+[submodule "Matts-Configs"]
+	path = Matts-Configs
+	url = git://github.com/mathom/Matts-Configs.git

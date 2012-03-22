@@ -1,0 +1,12 @@
+[user]
+    name = Ben Hayden
+    email = hayden767@gmail.com
+
+[core]
+    excludesfile="~/.gitignore"
+
+[color]
+    ui = true
+
+[merge]
+    tool = vimdiff

@@ -1,0 +1,7 @@
+[ui]
+username = Ben Hayden <hayden767@gmail.com>
+merge = vimdiff
+
+[extensions]
+color =
+mq =
