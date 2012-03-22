@@ -17,8 +17,15 @@ export LS_COLORS="di=34:ex=32:or=31:mi=31:ln=36:*.tar.gz=35:*.tar.bz2=35:*.diff=
 export BC="svn+ssh://svn/srv/svnroot/britecore"
 export BC_OLD="svn+ssh://svn/srv/svnroot/britecore_old"
 export IQ="svn+ssh://svn/srv/svnroot/iwsquotes"
+
 # Path Updates
-export PATH='/opt/go/bin/':'/opt/go/pkg/tool/linux_amd64/':'/usr/local/bin/':$PATH
+if [[ $OSTYPE == 'linux-gnu' ]]; then
+    # Linux Specific Paths
+    export PATH="/opt/go/bin/:/opt/go/pkg/tool/linux_amd64/:/usr/local/bin/:${PATH}"
+elif [[ $OSTYPE == 'darwin10.0' ]]; then
+    # Mac OS X Paths
+    export PATH="$(brew --prefix coreutils)/libexec/gnubin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:${PATH}"
+fi
 
 # Aliases
 alias ls='ls --color=auto'
