@@ -37,6 +37,7 @@ fi
 
 # Aliases
 alias ls='ls --color=auto'
+alias tmux='TERM=xterm-256color tmux'
 # Aliases for updating and logging into SSH sites
 alias gocalvary='ssh calvaryag@mycalvaryassembly.org'
 alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
