@@ -21,7 +21,7 @@ export IQ="svn+ssh://svn/srv/svnroot/iwsquotes"
 # Operation System Specific Setup
 if [ $OSTYPE == 'linux-gnu' ]; then
     # Linux Specific Paths
-    export PATH="/opt/go/bin/:/opt/go/pkg/tool/linux_amd64/:/usr/local/bin/:${PATH}"
+    export PATH="/usr/local/bin/:${PATH}"
     # Enable Bash Completion
     if [ -f /etc/bash_completion ]; then
         . /etc/bash_completion
