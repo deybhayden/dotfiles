@@ -46,3 +46,8 @@ alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bi
 alias goleona='ssh leonamay@leonamayphotography.com'
 alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
 alias goxen='ssh britecore.xen'
+
+# Increase history to 10,000 entries... erase duplicates, and append on shell exit instead of overwrite.
+export HISTSIZE=10000
+export HISTCONTROL=erasedups
+shopt -s histappend
