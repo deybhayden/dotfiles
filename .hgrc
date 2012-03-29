@@ -1,7 +1,6 @@
 [ui]
 username = Ben Hayden <hayden767@gmail.com>
-merge = opendiff
-ignore = ~/.hgignore_global
+merge = vimdiff
 
 [extensions]
 color =

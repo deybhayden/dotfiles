@@ -1,18 +1,25 @@
 [user]
-name = Ben Hayden
-email = hayden767@gmail.com
+    name = Ben Hayden
+    email = hayden767@gmail.com
 
 [color]
-ui = true
+    ui = true
 
 [core]
-excludesfile = ~/.gitignore_global
+    excludesfile = ~/.gitignore_global
 
 [push]
-default = current
+    default = current
 
 [merge]
-tool = fugitive
+    tool = fugitive
 
 [mergetool "fugitive"]
-cmd = vim -f -c \"Gdiff\" \"$MERGED\"
+    cmd = vim -f -c \"Gdiff\" \"$MERGED\"
+
+[alias]
+    ci = commit
+    br = branch
+    co = checkout
+    st = status
+    diffc = diff --cached
