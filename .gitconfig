@@ -5,12 +5,11 @@ email = ben@britecore.com
 [color]
 ui = true
 
+[merge]
+tool = vimdiff
+
 [core]
 excludesfile = ~/.gitignore_global
-
-[mergetool "diffmerge"]
-cmd = diffmerge --merge --result=$MERGED $LOCAL $BASE $REMOTE
-trustExitCode = false
 
 [push]
 default = current
