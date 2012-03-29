@@ -5,11 +5,14 @@ email = hayden767@gmail.com
 [color]
 ui = true
 
-[merge]
-tool = vimdiff
-
 [core]
 excludesfile = ~/.gitignore_global
 
 [push]
 default = current
+
+[merge]
+tool = fugitive
+
+[mergetool "fugitive"]
+cmd = vim -f -c \"Gdiff\" \"$MERGED\"
