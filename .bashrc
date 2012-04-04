@@ -13,7 +13,7 @@ export EDITOR="vim"
 export LESS="-R"
 export GREP_OPTIONS="--color=always --exclude-dir=.svn"
 export LS_COLORS="di=34:ex=32:or=31:mi=31:ln=36:*.tar.gz=35:*.tar.bz2=35:*.diff=33"
-# Subversion Repo Shortcuts
+# IWS Subversion Repo Shortcuts
 export BC="svn+ssh://svn/srv/svnroot/britecore"
 export BC_OLD="svn+ssh://svn/srv/svnroot/britecore_old"
 export IQ="svn+ssh://svn/srv/svnroot/iwsquotes"
@@ -45,7 +45,6 @@ alias gocalvary='ssh calvaryag@mycalvaryassembly.org'
 alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
 alias goleona='ssh leonamay@leonamayphotography.com'
 alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
-alias goxen='ssh britecore.xen'
 
 # Increase history to 10,000 entries... erase duplicates, and append on shell exit instead of overwrite.
 export HISTSIZE=10000
