@@ -1,4 +1,4 @@
 [nosetests]
-verbosity=2
+verbosity=1
 with-doctest=1
 nologcapture=1
