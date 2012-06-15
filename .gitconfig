@@ -21,6 +21,7 @@
     ci = commit
     br = branch
     co = checkout
+    cp = cherry-pick
     st = status
     diffc = diff --cached
     plog = log --graph --all --decorate

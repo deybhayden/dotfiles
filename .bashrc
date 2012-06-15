@@ -11,7 +11,7 @@ PS1="\[\e[0;31m\]\u\[\e[0;37m\]@\[\e[0;31m\]\h \[\e[0;37m\][\t] \[\e[0;36m\]\w: 
 # Global Variable Configuration
 export EDITOR="vim"
 export LESS="-R"
-export GREP_OPTIONS="--color=always --exclude-dir=.svn"
+export GREP_OPTIONS="--color=always -n --exclude-dir=.svn"
 export LS_COLORS="di=34:ex=32:or=31:mi=31:ln=36:*.tar.gz=35:*.tar.bz2=35:*.diff=33"
 
 # Operation System Specific Setup
