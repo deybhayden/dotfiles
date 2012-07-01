@@ -9,7 +9,7 @@
     excludesfile = ~/.gitignore_global
 
 [push]
-    default = current
+    default = nothing
 
 [merge]
     tool = fugitive
