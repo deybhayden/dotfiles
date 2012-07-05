@@ -25,3 +25,5 @@
     st = status
     diffc = diff --cached
     plog = log --graph --all --decorate
+    slog = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative
+    tracking = for-each-ref --format='%(refname:short) <- %(upstream:short)' refs/heads
