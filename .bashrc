@@ -26,7 +26,7 @@ elif [ $OSTYPE == 'darwin10.0' ]; then
     # Mac OS X Paths
     export PATH="$(brew --prefix coreutils)/libexec/gnubin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:${PATH}"
     # Use MacVim
-    alias vim='/Applications/MacVim.app/Contents/MacOS/Vim'
+    export EDITOR='/Applications/MacVim.app/Contents/MacOS/Vim'
     # Enable Bash Completion
     if [ -f `brew --prefix`/etc/bash_completion ]; then
         . `brew --prefix`/etc/bash_completion
