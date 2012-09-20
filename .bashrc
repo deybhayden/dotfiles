@@ -32,6 +32,7 @@ fi
 
 # Aliases
 alias ls='ls --color=auto'
+alias pylab='ipython --pylab'
 # Aliases for updating and logging into SSH sites
 alias gocalvary='ssh calvaryag@mycalvaryassembly.org'
 alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
