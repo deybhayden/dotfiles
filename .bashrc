@@ -39,11 +39,7 @@ if [ $OSTYPE == 'linux-gnu' ]; then
     fi
 elif [ $OSTYPE == 'darwin11' ]; then
     # Mac OS X Paths
-    export PATH="$(brew --prefix coreutils)/libexec/gnubin:/usr/local/share/npm/bin:/usr/local/sbin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:${PATH}"
-    # Use MacVim
-    alias vim='/Applications/MacVim.app/Contents/MacOS/Vim'
-    alias winpdb='python2.7-32 /Library/Frameworks/Python.framework/Versions/2.7/bin/winpdb'
-    export EDITOR='/Applications/MacVim.app/Contents/MacOS/Vim'
+    export PATH="$(brew --prefix coreutils)/libexec/gnubin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/usr/local/share/npm/bin:/usr/local/sbin:/usr/local/bin:${PATH}"
     # Enable Bash Completion
     if [ -f `brew --prefix`/etc/bash_completion ]; then
         . `brew --prefix`/etc/bash_completion
@@ -53,6 +49,7 @@ fi
 # Aliases
 alias ls='ls --color=auto'
 alias pylab='ipython --pylab'
+alias gg='git grep'
 # Aliases for updating and logging into SSH sites
 alias gocalvary='ssh calvaryag@mycalvaryassembly.org'
 alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
