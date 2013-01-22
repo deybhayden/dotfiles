@@ -33,9 +33,8 @@ export LESS="-R"
 if [ $OSTYPE == 'linux-gnu' ]; then
     # Linux Specific Paths
     export PATH="/usr/local/bin/:${PATH}"
-    # Enable Bash Completion
-    if [ -f /etc/bash_completion ]; then
-        . /etc/bash_completion
+    if [ -f /etc/profile.d/bash-completion.sh ]; then
+        . /etc/profile.d/bash-completion.sh
     fi
 elif [ $OSTYPE == 'darwin11' ]; then
     # Mac OS X Paths
@@ -60,17 +59,3 @@ alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/
 export HISTSIZE=10000
 export HISTCONTROL=erasedups
 shopt -s histappend
-
-branch_git() {
-    git branch &>/dev/null || return 1
-    HEAD="$(git symbolic-ref HEAD 2>/dev/null)"
-    BRANCH="${HEAD##*/}"
-    echo ":${BRANCH:-unknown}"
-}
-
-modified_git() {
-    [[ -n "$(git status --porcelain 2>/dev/null | grep -F 'M ')" ]] && echo "!"
-}
-
-# Add fancy git bash prompt.
-export PS1="${GREEN}\u ${LCYAN}\W${YELLOW}\$(branch_git)${RED}\$(modified_git)${WHITE}\$ ${NORMAL}"

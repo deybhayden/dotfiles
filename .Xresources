@@ -1,0 +1,5 @@
+URxvt.background: #000000
+URxvt.foreground: #FFFFFF
+URxvt.scrollBar: false
+URxvt*font: xft:inconsolata:size=10
+URxvt.clipboard.autocopy: true
