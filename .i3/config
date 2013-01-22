@@ -116,6 +116,9 @@ bindsym XF86AudioMute exec amixer set Master toggle
 bindsym XF86AudioRaiseVolume exec amixer set Master 10%+
 bindsym XF86AudioLowerVolume exec amixer set Master 10%-
 
+# Lock screen
+bindsym XF86ScreenSaver exec i3lock -c 000000
+
 # resize window (you can also use the mouse for that)
 mode "resize" {
         # These bindings trigger as soon as you enter the resize mode
