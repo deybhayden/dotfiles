@@ -107,6 +107,11 @@ bindsym $mod+Shift+R restart
 # exit i3 (logs you out of your X session)
 bindsym $mod+Shift+E exit
 
+# Application shortcuts
+bindsym $mod+C exec chromium
+bindsym $mod+G exec gvim
+bindsym $mod+Shift+S exec spacefm
+
 # Screenshots
 bindsym Print exec scrot
 bindsym Mod1+Print exec scrot -s
