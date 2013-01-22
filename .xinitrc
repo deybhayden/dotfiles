@@ -3,10 +3,16 @@
 DEFAULT_SESSION="i3"
 # Define Xresources
 XRESOURCES=$HOME/.Xresources
+# Define Xmodmap
+XMODMAP=$HOME/.Xmodmap
 
 # Merge what is available
 if [ -f "$XRESOURCES" ]; then
     xrdb -merge "$XRESOURCES"
+fi
+
+if [ -f "$XMODMAP" ]; then
+    xmodmap "$XMODMAP"
 fi
 
 # Run urxvt daemon
