@@ -156,3 +156,6 @@ bar {
         status_command i3status
         font pango: Inconsolata Medium 9
 }
+
+# Startup Applications
+exec dropbox start
