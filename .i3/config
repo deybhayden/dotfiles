@@ -14,6 +14,11 @@ set $mod Mod4
 # font for window titles. ISO 10646 = Unicode
 font pango: Inconsolata Medium 10
 
+# new windows will have a 1 pixel border
+new_window 1pixel
+new_float 1pixel
+hide_edge_borders both
+
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
 
