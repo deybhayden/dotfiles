@@ -163,4 +163,4 @@ bar {
 }
 
 # Startup Applications
-exec dropbox start
+exec --no-startup-id dropbox start
