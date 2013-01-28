@@ -33,6 +33,7 @@ export LESS="-R"
 if [ $OSTYPE == 'linux-gnu' ]; then
     # Linux Specific Paths
     export PATH="/usr/local/bin/:${PATH}"
+    export GTK2_RC_FILES="$HOME/.gtkrc-2.0"
     if [ -f /etc/profile.d/bash-completion.sh ]; then
         . /etc/profile.d/bash-completion.sh
     fi
