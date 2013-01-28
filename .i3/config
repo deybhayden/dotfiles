@@ -163,4 +163,5 @@ bar {
 }
 
 # Startup Applications
+exec --no-startup-id compton -c
 exec --no-startup-id dropbox start

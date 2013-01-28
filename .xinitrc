@@ -20,6 +20,8 @@ urxvtd -q -o -f
 # Set xserver parameters
 xset s 0
 xset dpms 0 0 1800
+# Set background
+feh --bg-scale /usr/share/slim/themes/batman/background.jpg
 
 # Start WM
 exec $DEFAULT_SESSION
