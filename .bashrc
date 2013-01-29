@@ -52,9 +52,9 @@ alias pylab='ipython --pylab'
 alias gg='git grep -n'
 # Aliases for updating and logging into SSH sites
 alias gocalvary='ssh calvaryag@mycalvaryassembly.org'
-alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
+alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; python2.7 ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
 alias goleona='ssh leonamay@leonamayphotography.com'
-alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
+alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; python2.7 ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
 
 # Increase history to 10,000 entries... erase duplicates, and append on shell exit instead of overwrite.
 export HISTSIZE=10000
