@@ -2,7 +2,7 @@ URxvt.depth: 32
 URxvt.foreground: #FFFFFF
 URxvt.background: [90]#000000
 ! black
-URxvt.color0: #2E3436
+URxvt.color0: #000000
 URxvt.color8: #555753
 ! red
 URxvt.color1: #CC0000
