@@ -115,7 +115,7 @@ bindsym $mod+Shift+E exit
 # Application shortcuts
 bindsym $mod+C exec chromium
 bindsym $mod+G exec gvim
-bindsym $mod+Shift+S exec spacefm
+bindsym $mod+Shift+P exec pcmanfm
 
 # Screenshots
 bindsym Print exec scrot

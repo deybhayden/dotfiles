@@ -57,6 +57,7 @@ alias goleona='ssh leonamay@leonamayphotography.com'
 alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; python2.7 ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
 alias turnoff='sudo shutdown -h now'
 alias turnoffon='sudo reboot'
+alias illarion='javaws ~/Illarion/illarion_client.jnlp'
 
 # Increase history to 10,000 entries... erase duplicates, and append on shell exit instead of overwrite.
 export HISTSIZE=10000
