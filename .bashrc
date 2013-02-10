@@ -32,7 +32,7 @@ export LESS="-R"
 # Operation System Specific Setup
 if [ $OSTYPE == 'linux-gnu' ]; then
     # Linux Specific Paths
-    export PATH="/usr/local/bin/:${PATH}"
+    export PATH="~/bin/:/usr/local/bin/:${PATH}"
     export GTK2_RC_FILES="$HOME/.gtkrc-2.0"
     if [ -f /etc/profile.d/bash-completion.sh ]; then
         . /etc/profile.d/bash-completion.sh
@@ -50,14 +50,6 @@ fi
 alias ls='ls --color=auto'
 alias pylab='ipython --pylab'
 alias gg='git grep -n'
-# Aliases for updating and logging into SSH sites
-alias gocalvary='ssh calvaryag@mycalvaryassembly.org'
-alias update-calvary='ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; python2.7 ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
-alias goleona='ssh leonamay@leonamayphotography.com'
-alias update-leona='ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; python2.7 ~/webapps/django/myproject/manage.py syncdb; ~/webapps/django/apache2/bin/restart"'
-alias turnoff='sudo shutdown -h now'
-alias turnoffon='sudo reboot'
-alias illarion='javaws ~/Illarion/illarion_client.jnlp'
 
 # Increase history to 10,000 entries... erase duplicates, and append on shell exit instead of overwrite.
 export HISTSIZE=10000
