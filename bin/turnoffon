@@ -1,2 +1,2 @@
 #!/bin/bash
-alias turnoffon='sudo reboot'
+sudo reboot

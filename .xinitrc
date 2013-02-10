@@ -1,6 +1,5 @@
 #!/bin/bash
 
-DEFAULT_SESSION="i3"
 # Define Xresources
 XRESOURCES=$HOME/.Xresources
 # Define Xmodmap
@@ -24,4 +23,4 @@ xset dpms 0 0 1800
 feh --bg-scale /usr/share/slim/themes/batman/background.jpg
 
 # Start WM
-exec $DEFAULT_SESSION
+exec ck-launch-session dbus-launch --sh-syntax --exit-with-session i3
