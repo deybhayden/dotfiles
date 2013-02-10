@@ -115,7 +115,8 @@ bindsym $mod+Shift+E exit
 # Application shortcuts
 bindsym $mod+C exec chromium
 bindsym $mod+G exec gvim
-bindsym $mod+Shift+P exec pcmanfm
+bindsym $mod+X exec exaile
+bindsym $mod+P exec pcmanfm
 
 # Screenshots
 bindsym Print exec scrot
@@ -125,6 +126,10 @@ bindsym Mod1+Print exec scrot -s
 bindsym XF86AudioMute exec amixer set Master toggle
 bindsym XF86AudioRaiseVolume exec amixer set Master 10%+
 bindsym XF86AudioLowerVolume exec amixer set Master 10%-
+bindsym XF86AudioPrev exec exaile -p
+bindsym XF86AudioNext exec exaile -n
+bindsym XF86AudioStop exec exaile -s
+bindsym XF86AudioPlay exec exaile -t
 
 # Lock screen
 bindsym XF86ScreenSaver exec i3lock -c 000000
