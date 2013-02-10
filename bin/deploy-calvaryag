@@ -1,0 +1,4 @@
+#!/bin/bash
+ssh calvaryag@mycalvaryassembly.org -k "cd calvaryag; ~/bin/hg pull -u; \
+                                        python2.7 ~/webapps/django/myproject/manage.py syncdb; \
+                                        ~/webapps/django/apache2/bin/restart"

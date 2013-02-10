@@ -1,0 +1,4 @@
+#!/bin/bash
+ssh leonamay@leonamayphotography.com -k "cd leonamay; ~/bin/hg pull -u; \
+                                         python2.7 ~/webapps/django/myproject/manage.py syncdb; \
+                                         ~/webapps/django/apache2/bin/restart"
