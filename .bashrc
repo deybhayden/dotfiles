@@ -32,14 +32,14 @@ export LESS="-R"
 # Operation System Specific Setup
 if [ $OSTYPE == 'linux-gnu' ]; then
     # Linux Specific Paths
-    export PATH="~/bin/:/usr/local/bin/:${PATH}"
+    export PATH="~/bin:/usr/local/bin:${PATH}"
     export GTK2_RC_FILES="$HOME/.gtkrc-2.0"
     if [ -f /etc/profile.d/bash-completion.sh ]; then
         . /etc/profile.d/bash-completion.sh
     fi
 elif [ $OSTYPE == 'darwin11' ]; then
     # Mac OS X Paths
-    export PATH="$(brew --prefix coreutils)/libexec/gnubin:$(brew --prefix go)/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/usr/local/share/npm/bin:/usr/local/sbin:/usr/local/bin:${PATH}"
+    export PATH="~/bin:$(brew --prefix coreutils)/libexec/gnubin:$(brew --prefix ruby)/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/usr/local/share/npm/bin:/usr/local/sbin:/usr/local/bin:${PATH}"
     # Enable Bash Completion
     if [ -f `brew --prefix`/etc/bash_completion ]; then
         . `brew --prefix`/etc/bash_completion
@@ -50,6 +50,7 @@ fi
 alias ls='ls --color=auto'
 alias pylab='ipython --pylab'
 alias gg='git grep -n'
+alias work_haste='HASTE_SERVER=http://hastebin.britecorepro.com haste'
 
 # Increase history to 10,000 entries... erase duplicates, and append on shell exit instead of overwrite.
 export HISTSIZE=10000
