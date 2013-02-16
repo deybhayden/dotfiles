@@ -21,6 +21,9 @@ LYELLOW="\[\033[1;33m\]"
 WHITE="\[\033[1;37m\]"
 NORMAL="\[\033[0;00m\]"
 
+# Moving path up here for dmenu
+export PATH="~/bin:${PATH}"
+
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
@@ -28,7 +31,6 @@ NORMAL="\[\033[0;00m\]"
 export EDITOR="vim"
 export GREP_OPTIONS="--color=always -n"
 export LESS="-R"
-export PATH="~/bin:${PATH}"
 
 # Operation System Specific Setup
 if [ $OSTYPE == 'linux-gnu' ]; then
