@@ -28,11 +28,10 @@ NORMAL="\[\033[0;00m\]"
 export EDITOR="vim"
 export GREP_OPTIONS="--color=always -n"
 export LESS="-R"
+export PATH="~/bin:${PATH}"
 
 # Operation System Specific Setup
 if [ $OSTYPE == 'linux-gnu' ]; then
-    # Linux Specific Paths
-    export PATH="~/bin:/usr/local/bin:${PATH}"
     export GTK2_RC_FILES="$HOME/.gtkrc-2.0"
     if [ -f /etc/profile.d/bash-completion.sh ]; then
         . /etc/profile.d/bash-completion.sh

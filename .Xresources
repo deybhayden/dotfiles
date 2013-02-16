@@ -28,3 +28,4 @@ URxvt.color15: #EEEEEC
 URxvt.scrollBar: false
 URxvt.font: xft:inconsolata:size=10
 URxvt.clipboard.autocopy: true
+URxvt.termName: xterm-256color
