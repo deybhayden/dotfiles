@@ -1,0 +1,2 @@
+#!/bin/bash
+tracd --auto-reload --basic-auth="trac,/Users/benhayden/bin/trac.htpasswd,My Test Env" -p 5001 /Users/benhayden/Sites/trac/
