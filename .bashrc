@@ -42,7 +42,7 @@ if [ $OSTYPE == 'linux-gnu' ]; then
     fi
 elif [ $OSTYPE == 'darwin11' ]; then
     # Mac OS X Paths
-    export PATH="~/bin:$(brew --prefix coreutils)/libexec/gnubin:$(brew --prefix ruby)/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/usr/local/share/npm/bin:/usr/local/sbin:/usr/local/bin:${PATH}"
+    export PATH="$HOME/Documents/go-zone/bin:$HOME/bin:$(brew --prefix coreutils)/libexec/gnubin:$(brew --prefix ruby)/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/usr/local/share/npm/bin:/usr/local/sbin:/usr/local/bin:${PATH}"
     # Enable Bash Completion
     if [ -f `brew --prefix`/etc/bash_completion ]; then
         . `brew --prefix`/etc/bash_completion
