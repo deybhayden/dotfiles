@@ -31,11 +31,11 @@ export PATH="~/bin:${PATH}"
 export EDITOR="vim"
 export GREP_OPTIONS="--color=always -n"
 export LESS="-R"
+export GOPATH="$HOME/Documents/go-zone"
 
 # Operation System Specific Setup
 if [ $OSTYPE == 'linux-gnu' ]; then
     export GTK2_RC_FILES="$HOME/.gtkrc-2.0"
-    export GOPATH="$HOME/Documents/go-zone"
     export PATH="$HOME/Documents/go-zone/bin:${PATH}"
     if [ -f /etc/profile.d/bash-completion.sh ]; then
         . /etc/profile.d/bash-completion.sh
