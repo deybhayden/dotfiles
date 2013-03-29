@@ -1,0 +1,55 @@
+ZSH_DIR=$(dirname `readlink $HOME/.zshrc`)
+
+# Export some global settings
+export EDITOR="vim"
+export LESS="-R"
+
+# Aliases
+alias ls='ls --color=auto'
+alias gg='git grep -n'
+
+# Style for autocomplete
+zstyle ':completion:*' completer _complete _ignored _correct _approximate
+zstyle ':completion:*:descriptions' format '%U%B%d%b%u'
+zstyle ':completion:*:warnings' format '%BSorry, no matches for: %d%b'
+zstyle :compinstall filename "$HOME/.zshrc"
+
+# Load autocompletion
+autoload -Uz compinit
+compinit
+
+# Correct all mistyped commands
+setopt correctall
+# Ignore entries with a preceding space
+setopt hist_ignore_space
+# Change directory when typing directory
+setopt autocd
+
+# Enable save history of 1000 cmds, write to a certain file
+HISTFILE=~/.histfile
+HISTSIZE=1000
+SAVEHIST=1000
+
+# Emacs-style bindings
+bindkey -e
+
+# Enable Antigen bundle system
+# https://github.com/zsh-users/antigen
+source "$ZSH_DIR/antigen.zsh"
+
+# Enable oh-my-zsh repo
+antigen-use oh-my-zsh
+
+# Turn on some different plugins
+antigen-bundle git
+antigen-bundle golang
+antigen-bundle pip
+antigen-bundle vagrant
+
+# Turn on syntax highlighting for shell
+antigen-bundle zsh-users/zsh-syntax-highlighting
+
+# Pretty Colors
+antigen-theme dpoggi
+
+antigen-apply
