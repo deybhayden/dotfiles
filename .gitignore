@@ -1,2 +1,3 @@
 *.amz
 *.log
+*.htpasswd
