@@ -4,4 +4,5 @@ export GOPATH="$HOME/Documents/go-zone"
 
 alias work_haste='HASTE_SERVER=http://hastebin.britecorepro.com haste'
 
+PLUGINS=('vagrant' 'brew')
 source "$ZSH_DIR/common.zsh"

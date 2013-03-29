@@ -1,5 +1,3 @@
-ZSH_DIR=$(dirname `readlink $HOME/.zshrc`)
-
 # Export some global settings
 export EDITOR="vim"
 export LESS="-R"
@@ -44,7 +42,10 @@ antigen-use oh-my-zsh
 antigen-bundle git
 antigen-bundle golang
 antigen-bundle pip
-antigen-bundle vagrant
+
+for p in $PLUGINS; do
+    antigen-bundle $p end
+done
 
 # Turn on syntax highlighting for shell
 antigen-bundle zsh-users/zsh-syntax-highlighting
