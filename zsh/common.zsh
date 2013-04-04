@@ -2,10 +2,6 @@
 export EDITOR="vim"
 export LESS="-R"
 
-# Aliases
-alias ls='ls --color=auto'
-alias gg='git grep -n'
-
 # Style for autocomplete
 zstyle ':completion:*' completer _complete _ignored _correct _approximate
 zstyle ':completion:*:descriptions' format '%U%B%d%b%u'
@@ -22,6 +18,13 @@ setopt correctall
 setopt hist_ignore_space
 # Change directory when typing directory
 setopt autocd
+
+# Aliases
+alias ls='ls --color=auto'
+alias gg='git grep -n'
+compdef _git gg=git-grep
+alias gpd='git push --delete'
+compdef _git gpd=git-push
 
 # Enable save history of 1000 cmds, write to a certain file
 HISTFILE=~/.histfile
