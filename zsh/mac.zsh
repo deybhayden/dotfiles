@@ -3,6 +3,9 @@ export PATH="$HOME/bin:$HOME/Documents/go-zone/bin:$(brew --prefix coreutils)/li
 export GOPATH="$HOME/Documents/go-zone"
 
 alias work_haste='HASTE_SERVER=http://hastebin.britecorepro.com haste'
+alias vud='vagrant up dev'
+alias vhd='vagrant halt dev'
+alias vsd='vagrant ssh dev'
 
 PLUGINS=('vagrant' 'brew')
 source "$ZSH_DIR/common.zsh"
