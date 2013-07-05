@@ -19,13 +19,6 @@ setopt hist_ignore_space
 # Change directory when typing directory
 setopt autocd
 
-# Aliases
-alias ls='ls --color=auto'
-alias gg='git grep -n'
-compdef _git gg=git-grep
-alias gpd='git push --delete'
-compdef _git gpd=git-push
-
 # Enable save history of 1000 cmds, write to a certain file
 HISTFILE=~/.histfile
 HISTSIZE=1000
@@ -57,3 +50,10 @@ antigen-bundle zsh-users/zsh-syntax-highlighting
 antigen-theme dpoggi
 
 antigen-apply
+
+# Aliases (at the end to overwrite any antigen aliases)
+alias ls='ls --color=auto'
+alias gg='git grep -n'
+compdef _git gg=git-grep
+alias gpd='git push --delete'
+compdef _git gpd=git-push
