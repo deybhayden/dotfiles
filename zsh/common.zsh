@@ -12,6 +12,17 @@ zstyle :compinstall filename "$HOME/.zshrc"
 autoload -Uz compinit
 compinit
 
+autoload -U bashcompinit
+bashcompinit
+
+# Nosetest autocomplete
+_nosetests()
+{
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    COMPREPLY=(`nosecomplete ${cur} 2>/dev/null`)
+}
+complete -o nospace -F _nosetests nosetests
+
 # Correct all mistyped commands
 setopt correctall
 # Ignore entries with a preceding space
