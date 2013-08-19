@@ -26,6 +26,6 @@ URxvt.color14: #34E2E2
 URxvt.color7: #D3D7CF
 URxvt.color15: #EEEEEC
 URxvt.scrollBar: false
-URxvt.font: xft:inconsolata:size=10
+URxvt.font: xft:inconsolata:size=12
 URxvt.clipboard.autocopy: true
 URxvt.termName: xterm-256color
