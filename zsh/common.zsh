@@ -68,3 +68,10 @@ alias gg='git grep -n'
 compdef _git gg=git-grep
 alias gpd='git push --delete'
 compdef _git gpd=git-push
+
+# Activate virtualenv bottles named .venv automatically upon cd
+function chpwd() {
+    if [ -d .venv ]; then
+        . .venv/bin/activate
+    fi
+}
