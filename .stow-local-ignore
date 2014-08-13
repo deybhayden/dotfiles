@@ -1,0 +1,6 @@
+README.*
+\.git
+\.gitmodules
+\.gitignore
+.*\.itermcolors
+macsimus.sh

@@ -1,0 +1,27 @@
+[user]
+	name = Ben Hayden
+	email = hayden767@gmail.com
+
+[color]
+	ui = true
+
+[core]
+	autoclrf = input
+	excludesfile = ~/.gitignore_global
+	attributesfile = ~/.gitattributes_global
+
+[push]
+	default = nothing
+
+[merge]
+	tool = fugitive
+
+[mergetool "fugitive"]
+	cmd = vim -f -c \"Gdiff\" \"$MERGED\"
+
+[rerere]
+	enabled = 1
+
+[filter "media"]
+	clean = git-media-clean %f
+	smudge = git-media-smudge %f

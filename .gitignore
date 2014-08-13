@@ -1,0 +1,9 @@
+.config/hub
+.config/configstore/
+.config/pudb/saved-breakpoints-2.7
+.vim/plugged/
+.vim/cache/
+.vim/tmp/
+.vim/undo/
+.vim/.netrwhist
+.vim/autoload/plug.vim*
