@@ -18,28 +18,28 @@ if [[ ! $(brew --version) ]]; then
   brew tap caskroom/fonts
   casks=(flux google-chrome google-drive firefox slack karabiner font-sauce-code-powerline iterm2 shiftit flycut sequel-pro screenhero packer cyberduck dockertoolbox sling tunnelblick)
 
-  for $c in $casks;
+  for c in $casks;
     do brew cask install $c;
   done
 
   echo "Installing pips"
   pips=(awsebcli awscli ipython pudb sh flake8 virtualenv pandas matplotlib)
 
-  for $p in $pips;
+  for p in $pips;
     do pip install $p;
   done
 
   echo "Installing npms"
-  pips=(eslint eslint-plugin-react babel-eslint webpack karma concurrently)
+  npms=(eslint eslint-plugin-react babel-eslint webpack karma concurrently)
 
-  for $n in $npms;
+  for n in $npms;
     do npm install -g $n;
   done
 
   echo "Installing gems"
   gems=(bropages slackcat bundler)
 
-  for $g in $gems;
+  for g in $gems;
     do gem install $g;
   done
 
