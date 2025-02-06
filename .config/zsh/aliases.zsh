@@ -4,6 +4,7 @@
 alias .r="cd $REPO_DIR"
 alias .f="cd $REPO_DIR/dotfiles"
 alias .v="cd $VSCODE_WORKSPACE_FOLDER"
+alias .o="cd $REPO_DIR/tools/otpgen"
 
 # misc
 alias cO="curl -O"

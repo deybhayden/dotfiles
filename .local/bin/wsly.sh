@@ -137,6 +137,14 @@ if [[ ! $(zsh --version) ]]; then
   curl -fsSL https://deno.land/install.sh | sh
   export DENO_INSTALL="/home/$(whoami)/.deno"
 
+  # Otpgen
+  echo "Installing otpgen"
+  mkdir -p $REPO_DIR/tools
+  git clone https://github.com/deybhayden/otpgen.git $REPO_DIR/tools/otpgen
+  pushd $REPO_DIR/tools/otpgen
+  pipenv install
+  popd
+
   echo "GitHub CLI login"
   gh auth login
 else

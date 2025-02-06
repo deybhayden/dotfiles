@@ -81,6 +81,14 @@ if [[ ! $(brew --version) ]]; then
   stow -t ~ .
   cp clamav/freshclam.conf "$HOMEBREW_PREFIX/etc/clamav"
 
+  # Otpgen
+  echo "Installing otpgen"
+  mkdir -p $REPO_DIR/tools
+  git clone https://github.com/deybhayden/otpgen.git $REPO_DIR/tools/otpgen
+  pushd $REPO_DIR/tools/otpgen
+  pipenv install
+  popd
+
   echo "GitHub CLI login"
   gh auth login
 else
