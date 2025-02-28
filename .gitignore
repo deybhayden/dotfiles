@@ -1,0 +1,3 @@
+.config/zsh/custom
+.local/bin/*
+!.local/bin/wsly.sh
