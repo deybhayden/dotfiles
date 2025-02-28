@@ -1,0 +1,12 @@
+# Python
+*.pyc
+.python-version
+__pycache__
+
+# Node/Yarn
+node_modules
+.yarnclean
+.nvmrc
+
+# direnv
+.envrc
