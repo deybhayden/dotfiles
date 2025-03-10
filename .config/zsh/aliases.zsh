@@ -8,6 +8,7 @@ alias .o="cd $REPO_DIR/tools/otpgen"
 
 # misc
 alias cO="curl -O"
+alias ct="curl -o /dev/null -s -w 'Time to connect: %{time_connect}s\nTime to start transfer: %{time_starttransfer}s\nTotal time: %{time_total}s\n'"
 alias htop="sudo htop"
 alias src='source "$HOME/.zshrc"'
 
