@@ -43,7 +43,13 @@ alias tf="terraform"
 alias tf-gitlab-init="terraform init -backend-config=config.http.tfbackend -backend-config=\"username=deybhayden\" -backend-config=\"password=$GITLAB_TOKEN\""
 
 # vscode
-alias vc="code"
-alias v-="code -"
-alias vd="code -d"
-alias vdiff="code -d"
+if [ "$EDITOR" != "cursor -w" ]; then
+  CODECMD="code"
+else
+  CODECMD="cursor"
+fi
+
+alias vc="$CODECMD"
+alias v-="$CODECMD -"
+alias vd="$CODECMD -d"
+alias vdiff="$CODECMD -d"

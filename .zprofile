@@ -21,4 +21,7 @@ export REPO_DIR="$HOME/Repos"
 export ZSH="$HOME/.config/zsh"
 export ZSH_CUSTOM="$HOME/.config/zsh/custom"
 
-export EDITOR="code -w"
+# Check if editor is cursor -w, if not set it to code -w
+if [ "$EDITOR" != "cursor -w" ]; then
+  export EDITOR="code -w"
+fi
