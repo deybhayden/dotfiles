@@ -53,3 +53,6 @@ alias vc="$CODECMD"
 alias v-="$CODECMD -"
 alias vd="$CODECMD -d"
 alias vdiff="$CODECMD -d"
+
+# aws
+alias aws-sso="aws sso login --sso-session"
