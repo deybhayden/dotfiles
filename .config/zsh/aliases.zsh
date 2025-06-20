@@ -49,3 +49,6 @@ alias vdiff="code -d"
 
 # aws
 alias aws-sso="aws sso login --sso-session"
+
+# claude
+alias yolo-claude="claude --dangerously-skip-permissions"
