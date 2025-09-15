@@ -46,5 +46,5 @@ alias tf="terraform"
 alias aws-sso="aws sso login --sso-session"
 
 # ai tools
-alias yolo-codex="codex --full-auto -m gpt-5 -c model_reasoning_effort='high'"
+alias yolo-codex="codex --full-auto -codex -m gpt-5-codex -c model_reasoning_effort='high'"
 alias yolo-claude="claude --dangerously-skip-permissions"
