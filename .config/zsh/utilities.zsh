@@ -19,3 +19,24 @@ function myip-ingress() {
 function zulu() {
   date -u +"%Y-%m-%dT%H:%M:%SZ" | tr -d "\n"
 }
+
+# ai tools
+cld() {
+    if [[ "$1" == "update" ]]; then
+        npm install -g @anthropic-ai/claude-cli@latest
+    else
+        claude --dangerously-skip-permissions "$@"
+    fi
+}
+
+cdx() {
+    if [[ "$1" == "update" ]]; then
+        npm install -g @openai/codex@latest
+    else
+        codex \
+            --model 'gpt-5-codex' \
+            --full-auto \
+            -c model_reasoning_summary_format=experimental \
+            --search "$@"
+    fi
+}
