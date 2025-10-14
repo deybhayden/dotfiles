@@ -3,3 +3,4 @@
 !.local/bin/wsly.sh
 !.local/bin/check-ecs-exec.sh
 !.local/bin/run-puppeteer-mcp.sh
+!.claude/settings.json
