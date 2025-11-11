@@ -3,3 +3,5 @@ font-size = 16
 theme = Dark Modern
 bold-color = bright
 background = #191919
+keybind = performable:ctrl+c=copy_to_clipboard
+keybind = ctrl+v=paste_from_clipboard
