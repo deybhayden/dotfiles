@@ -2,4 +2,5 @@
 .local/bin/*
 !.local/bin/wsly.sh
 !.local/bin/run-puppeteer-mcp.sh
+!.local/bin/minify-json.js
 !.claude/settings.json
