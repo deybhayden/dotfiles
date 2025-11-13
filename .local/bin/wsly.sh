@@ -33,7 +33,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   sudo apt install golang-go
 
   # Tools
-  sudo apt install direnv dnsutils eza fd-find jq nmap ntpdate ripgrep stow unzip wslu xdg-utils zip
+  sudo apt install direnv dnsutils eza fd-find jq nmap ntpdate ripgrep sqlite3 stow unzip wslu xdg-utils zip
 
   # Github cli
   (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
