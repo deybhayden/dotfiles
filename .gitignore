@@ -1,0 +1,4 @@
+.config/zsh/custom
+.local/bin/*
+!.local/bin/ralph.sh
+!.local/bin/wsly.sh

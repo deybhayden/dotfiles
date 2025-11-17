@@ -1,0 +1,13 @@
+{
+  "env": {
+    "MAX_THINKING_TOKENS": "16000"
+  },
+  "permissions": {
+    "defaultMode": "default"
+  },
+  "model": "opus",
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "figma@claude-plugins-official": true
+  }
+}
