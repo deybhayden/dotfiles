@@ -1,0 +1,23 @@
+{
+  "models": [
+    {
+      "provider": "openai-codex",
+      "id": "gpt-5.3-codex",
+      "label": "Codex",
+      "thinkingLevel": "xhigh"
+    },
+    {
+      "provider": "anthropic",
+      "id": "opus-4-6",
+      "label": "Opus",
+      "thinkingLevel": "xhigh"
+    }
+  ],
+  "summaryModel": {
+    "provider": "anthropic",
+    "id": "sonnet-4-6",
+    "thinkingLevel": "high"
+  },
+  "maxParallel": 2,
+  "summaryPrompt": "Summarize the following code review comments into a concise summary that captures the main points and suggestions for improvement. Focus on the key issues raised, the rationale behind them, and any actionable recommendations provided by the reviewers. The summary should be clear and informative, providing a high-level overview of the feedback without going into excessive detail."
+}
