@@ -1,0 +1,8 @@
+{
+  "env": {
+    "MAX_THINKING_TOKENS": "16000"
+  },
+  "permissions": {
+    "defaultMode": "default"
+  }
+}
