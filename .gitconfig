@@ -1,0 +1,60 @@
+[user]
+name = Ben Hayden
+email = hayden767@gmail.com
+signingkey = DF8FBDC291596A6C88ED9F0CE43D20D19C59D6F8
+
+[color]
+ui = true
+
+[core]
+autoclrf = input
+excludesfile = ~/.gitignore_global
+attributesfile = ~/.gitattributes_global
+
+[diff]
+renameLimit = 1000
+
+[push]
+default = simple
+autoSetupRemote = true
+
+[pull]
+rebase = true
+
+[rebase]
+autostash = true
+
+[fetch]
+prune = true
+
+[rerere]
+enabled = 1
+
+[github]
+user = deybhayden
+
+[commit]
+gpgsign = true
+
+[init]
+defaultBranch = main
+
+[gpg]
+program = gpg
+
+[filter "media"]
+clean = git-media-clean %f
+smudge = git-media-smudge %f
+
+[diff]
+tool = vscode
+[difftool "vscode"]
+cmd = code --wait --diff $LOCAL $REMOTE
+
+[merge]
+tool = vscode
+[mergetool "vscode"]
+cmd = code --wait $MERGED
+
+[credential "https://github.com"]
+helper = !gh auth git-credential
