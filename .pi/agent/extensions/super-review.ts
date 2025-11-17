@@ -1,0 +1,2245 @@
+/**
+ * Super Review Extension
+ *
+ * Runs the review prompt with multiple models in parallel and reports
+ * separate findings per model, followed by a summary.
+ *
+ * Usage:
+ * - /super-review (interactive selector)
+ * - /super-review pr 123
+ * - /super-review branch main
+ * - /super-review uncommitted
+ * - /super-review commit abc123
+ * - /super-review custom "check for security issues"
+ */
+
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ExtensionCommandContext,
+} from "@mariozechner/pi-coding-agent";
+import {
+  BorderedLoader,
+  DynamicBorder,
+  getAgentDir,
+  getMarkdownTheme,
+} from "@mariozechner/pi-coding-agent";
+import { complete, type UserMessage } from "@mariozechner/pi-ai";
+import {
+  Container,
+  type SelectItem,
+  SelectList,
+  Text,
+  Markdown,
+} from "@mariozechner/pi-tui";
+import path from "node:path";
+import { promises as fs } from "node:fs";
+
+type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+const SUPER_REVIEW_STATE_TYPE = "super-review-session";
+const SUPER_REVIEW_CONFIG_FILENAME = "super-review.json";
+const THINKING_LEVELS = new Set<ThinkingLevel>([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
+
+// State to track fresh session review (where we branched from).
+// Module-level state means only one super review can be active at a time.
+let superReviewOriginId: string | undefined = undefined;
+
+type SuperReviewSessionState = {
+  active: boolean;
+  originId?: string;
+};
+
+function setSuperReviewWidget(ctx: ExtensionContext, active: boolean) {
+  if (!ctx.hasUI) return;
+  if (!active) {
+    ctx.ui.setWidget("super-review", undefined);
+    return;
+  }
+
+  ctx.ui.setWidget("super-review", (_tui, theme) => {
+    const text = new Text(
+      theme.fg(
+        "warning",
+        "Super-review session active, return with /end-super-review",
+      ),
+      0,
+      0,
+    );
+    return {
+      render(width: number) {
+        return text.render(width);
+      },
+      invalidate() {
+        text.invalidate();
+      },
+    };
+  });
+}
+
+function getSuperReviewState(
+  ctx: ExtensionContext,
+): SuperReviewSessionState | undefined {
+  let state: SuperReviewSessionState | undefined;
+  for (const entry of ctx.sessionManager.getBranch()) {
+    if (
+      entry.type === "custom" &&
+      entry.customType === SUPER_REVIEW_STATE_TYPE
+    ) {
+      state = entry.data as SuperReviewSessionState | undefined;
+    }
+  }
+
+  return state;
+}
+
+function getReviewState(
+  ctx: ExtensionContext,
+): { active: boolean } | undefined {
+  let state: { active: boolean } | undefined;
+  for (const entry of ctx.sessionManager.getBranch()) {
+    if (entry.type === "custom" && entry.customType === "review-session") {
+      state = entry.data as { active: boolean } | undefined;
+    }
+  }
+
+  return state;
+}
+
+function applySuperReviewState(ctx: ExtensionContext) {
+  const state = getSuperReviewState(ctx);
+
+  if (state?.active && state.originId) {
+    superReviewOriginId = state.originId;
+    setSuperReviewWidget(ctx, true);
+    return;
+  }
+
+  superReviewOriginId = undefined;
+  setSuperReviewWidget(ctx, false);
+}
+
+// Review target types (matching Codex's approach)
+type ReviewTarget =
+  | { type: "uncommitted" }
+  | { type: "baseBranch"; branch: string }
+  | { type: "commit"; sha: string; title?: string }
+  | { type: "custom"; instructions: string }
+  | {
+      type: "pullRequest";
+      prNumber: number;
+      baseBranch: string;
+      title: string;
+    };
+
+// Prompts (adapted from Codex)
+const UNCOMMITTED_PROMPT =
+  "Review the current code changes (staged, unstaged, and untracked files) and provide prioritized findings.";
+
+const BASE_BRANCH_PROMPT_WITH_MERGE_BASE =
+  "Review the code changes against the base branch '{baseBranch}'. The merge base commit for this comparison is {mergeBaseSha}. Run `git diff {mergeBaseSha}` to inspect the changes relative to {baseBranch}. Provide prioritized, actionable findings.";
+
+const BASE_BRANCH_PROMPT_FALLBACK =
+  'Review the code changes against the base branch \'{branch}\'. Start by finding the merge diff between the current branch and {branch}\'s upstream e.g. (`git merge-base HEAD "$(git rev-parse --abbrev-ref "{branch}@{upstream}")"`), then run `git diff` against that SHA to see what changes we would merge into the {branch} branch. Provide prioritized, actionable findings.';
+
+const COMMIT_PROMPT_WITH_TITLE =
+  'Review the code changes introduced by commit {sha} ("{title}"). Provide prioritized, actionable findings.';
+
+const COMMIT_PROMPT =
+  "Review the code changes introduced by commit {sha}. Provide prioritized, actionable findings.";
+
+const PULL_REQUEST_PROMPT =
+  "Review pull request #{prNumber} (\"{title}\") against the base branch '{baseBranch}'. The merge base commit for this comparison is {mergeBaseSha}. Run `git diff {mergeBaseSha}` to inspect the changes that would be merged. Provide prioritized, actionable findings.";
+
+const PULL_REQUEST_PROMPT_FALLBACK =
+  "Review pull request #{prNumber} (\"{title}\") against the base branch '{baseBranch}'. Start by finding the merge base between the current branch and {baseBranch} (e.g., `git merge-base HEAD {baseBranch}`), then run `git diff` against that SHA to see the changes that would be merged. Provide prioritized, actionable findings.";
+
+// The detailed review rubric (adapted from Codex's review_prompt.md)
+const REVIEW_RUBRIC = `# Review Guidelines
+
+You are acting as a code reviewer for a proposed code change.
+
+## Determining what to flag
+
+Flag issues that:
+1. Meaningfully impact the accuracy, performance, security, or maintainability of the code.
+2. Are discrete and actionable (not general issues or multiple combined issues).
+3. Don't demand rigor inconsistent with the rest of the codebase.
+4. Were introduced in the changes being reviewed (not pre-existing bugs).
+5. The author would likely fix if aware of them.
+6. Don't rely on unstated assumptions about the codebase or author's intent.
+7. Have provable impact on other parts of the code (not speculation).
+8. Are clearly not intentional changes by the author.
+9. Be particularly careful with untrusted user input and follow the specific guidelines to review.
+
+## Untrusted User Input
+
+1. Be careful with open redirects, they must always be checked to only go to trusted domains (?next_page=...)
+2. Always flag SQL that is not parametrized
+3. In systems with user supplied URL input, http fetches always need to be protected against access to local resources (intercept DNS resolver!)
+4. Escape, don't sanitize if you have the option (eg: HTML escaping)
+
+## Comment guidelines
+
+1. Be clear about why the issue is a problem.
+2. Communicate severity appropriately - don't exaggerate.
+3. Be brief - at most 1 paragraph.
+4. Keep code snippets under 3 lines, wrapped in inline code or code blocks.
+5. Explicitly state scenarios/environments where the issue arises.
+6. Use a matter-of-fact tone - helpful AI assistant, not accusatory.
+7. Write for quick comprehension without close reading.
+8. Avoid excessive flattery or unhelpful phrases like "Great job...".
+
+## Review priorities
+
+1. Call out newly added dependencies explicitly and explain why they're needed.
+2. Prefer simple, direct solutions over wrappers or abstractions without clear value.
+3. Favor fail-fast behavior; avoid logging-and-continue patterns that hide errors.
+4. Prefer predictable production behavior; crashing is better than silent degradation.
+5. Treat back pressure handling as critical to system stability.
+6. Apply system-level thinking; flag changes that increase operational risk or on-call wakeups.
+7. Ensure that errors are always checked against codes or stable identifiers, never error messages.
+
+## Priority levels
+
+Tag each finding with a priority level in the title:
+- [P0] - Drop everything to fix. Blocking release/operations. Only for universal issues.
+- [P1] - Urgent. Should be addressed in the next cycle.
+- [P2] - Normal. To be fixed eventually.
+- [P3] - Low. Nice to have.
+
+## Output format
+
+Provide your findings in a clear, structured format:
+1. List each finding with its priority tag, file location, and explanation.
+2. Keep line references as short as possible (avoid ranges over 5-10 lines).
+3. At the end, provide an overall verdict: "correct" (no blocking issues) or "needs attention" (has blocking issues).
+4. Ignore trivial style issues unless they obscure meaning or violate documented standards.
+
+Output all findings the author would fix if they knew about them. If there are no qualifying findings, explicitly state the code looks good. Don't stop at the first finding - list every qualifying issue.`;
+
+const SUPER_REVIEW_SUMMARY_SYSTEM_PROMPT = `You are summarizing multiple code review reports for the same change.
+
+Instructions:
+- Deduplicate overlapping findings.
+- Preserve [P0]-[P3] priority tags when present.
+- Call out disagreements or model-specific findings.
+- Keep it concise and actionable.
+- End with an overall verdict: "correct" or "needs attention".
+
+Output format:
+## Combined Findings
+- ...
+
+## Differences / Disagreements
+- ...
+
+## Overall Verdict
+correct | needs attention`;
+
+const SUPER_REVIEW_BRANCH_SUMMARY_PROMPT = `We are switching to a coding session to continue working on the code.
+Create a structured summary of this super-review branch for context when returning later.
+
+You MUST summarize the multi-model review that was performed in this branch so that the user can act on it.
+
+1. What was reviewed (files, changes, scope)
+2. Key findings per model with priority levels (P0-P3)
+3. The combined summary and overall verdict
+4. Any action items or recommendations
+
+YOU MUST append a message with this EXACT format at the end of your summary:
+
+## Next Steps
+1. [What should happen next to act on the review]
+
+## Constraints & Preferences
+- [Any constraints, preferences, or requirements mentioned]
+- [Or "(none)" if none were mentioned]
+
+## Code Review Findings
+
+[P0] Short Title
+
+File: path/to/file.ext:line_number
+
+
+affected code snippet
+
+Preserve exact file paths, function names, and error messages.
+`;
+
+async function loadProjectReviewGuidelines(
+  cwd: string,
+): Promise<string | null> {
+  let currentDir = path.resolve(cwd);
+
+  while (true) {
+    const piDir = path.join(currentDir, ".pi");
+    const guidelinesPath = path.join(currentDir, "REVIEW_GUIDELINES.md");
+
+    const piStats = await fs.stat(piDir).catch(() => null);
+    if (piStats?.isDirectory()) {
+      const guidelineStats = await fs.stat(guidelinesPath).catch(() => null);
+      if (guidelineStats?.isFile()) {
+        try {
+          const content = await fs.readFile(guidelinesPath, "utf8");
+          const trimmed = content.trim();
+          return trimmed ? trimmed : null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return null;
+    }
+    currentDir = parentDir;
+  }
+}
+
+/**
+ * Get the merge base between HEAD and a branch
+ */
+async function getMergeBase(
+  pi: ExtensionAPI,
+  branch: string,
+): Promise<string | null> {
+  try {
+    // First try to get the upstream tracking branch
+    const { stdout: upstream, code: upstreamCode } = await pi.exec("git", [
+      "rev-parse",
+      "--abbrev-ref",
+      `${branch}@{upstream}`,
+    ]);
+
+    if (upstreamCode === 0 && upstream.trim()) {
+      const { stdout: mergeBase, code } = await pi.exec("git", [
+        "merge-base",
+        "HEAD",
+        upstream.trim(),
+      ]);
+      if (code === 0 && mergeBase.trim()) {
+        return mergeBase.trim();
+      }
+    }
+
+    // Fall back to using the branch directly
+    const { stdout: mergeBase, code } = await pi.exec("git", [
+      "merge-base",
+      "HEAD",
+      branch,
+    ]);
+    if (code === 0 && mergeBase.trim()) {
+      return mergeBase.trim();
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get list of local branches
+ */
+async function getLocalBranches(pi: ExtensionAPI): Promise<string[]> {
+  const { stdout, code } = await pi.exec("git", [
+    "branch",
+    "--format=%(refname:short)",
+  ]);
+  if (code !== 0) return [];
+  return stdout
+    .trim()
+    .split("\n")
+    .filter((b) => b.trim());
+}
+
+/**
+ * Get list of recent commits
+ */
+async function getRecentCommits(
+  pi: ExtensionAPI,
+  limit: number = 10,
+): Promise<Array<{ sha: string; title: string }>> {
+  const { stdout, code } = await pi.exec("git", [
+    "log",
+    `--oneline`,
+    `-n`,
+    `${limit}`,
+  ]);
+  if (code !== 0) return [];
+
+  return stdout
+    .trim()
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => {
+      const [sha, ...rest] = line.trim().split(" ");
+      return { sha, title: rest.join(" ") };
+    });
+}
+
+/**
+ * Check if there are uncommitted changes (staged, unstaged, or untracked)
+ */
+async function hasUncommittedChanges(pi: ExtensionAPI): Promise<boolean> {
+  const { stdout, code } = await pi.exec("git", ["status", "--porcelain"]);
+  return code === 0 && stdout.trim().length > 0;
+}
+
+/**
+ * Check if there are changes that would prevent switching branches
+ * (staged or unstaged changes to tracked files - untracked files are fine)
+ */
+async function hasPendingChanges(pi: ExtensionAPI): Promise<boolean> {
+  // Check for staged or unstaged changes to tracked files
+  const { stdout, code } = await pi.exec("git", ["status", "--porcelain"]);
+  if (code !== 0) return false;
+
+  // Filter out untracked files (lines starting with ??)
+  const lines = stdout
+    .trim()
+    .split("\n")
+    .filter((line) => line.trim());
+  const trackedChanges = lines.filter((line) => !line.startsWith("??"));
+  return trackedChanges.length > 0;
+}
+
+/**
+ * Parse a PR reference (URL or number) and return the PR number
+ */
+function parsePrReference(ref: string): number | null {
+  const trimmed = ref.trim();
+
+  // Try as a number first
+  const num = parseInt(trimmed, 10);
+  if (!isNaN(num) && num > 0) {
+    return num;
+  }
+
+  // Try to extract from GitHub URL
+  // Formats: https://github.com/owner/repo/pull/123
+  //          github.com/owner/repo/pull/123
+  const urlMatch = trimmed.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+  if (urlMatch) {
+    return parseInt(urlMatch[1], 10);
+  }
+
+  return null;
+}
+
+/**
+ * Get PR information from GitHub CLI
+ */
+async function getPrInfo(
+  pi: ExtensionAPI,
+  prNumber: number,
+): Promise<{ baseBranch: string; title: string; headBranch: string } | null> {
+  const { stdout, code } = await pi.exec("gh", [
+    "pr",
+    "view",
+    String(prNumber),
+    "--json",
+    "baseRefName,title,headRefName",
+  ]);
+
+  if (code !== 0) return null;
+
+  try {
+    const data = JSON.parse(stdout);
+    return {
+      baseBranch: data.baseRefName,
+      title: data.title,
+      headBranch: data.headRefName,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checkout a PR using GitHub CLI
+ */
+async function checkoutPr(
+  pi: ExtensionAPI,
+  prNumber: number,
+): Promise<{ success: boolean; error?: string }> {
+  const { stdout, stderr, code } = await pi.exec("gh", [
+    "pr",
+    "checkout",
+    String(prNumber),
+  ]);
+
+  if (code !== 0) {
+    return {
+      success: false,
+      error: stderr || stdout || "Failed to checkout PR",
+    };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Get the current branch name
+ */
+async function getCurrentBranch(pi: ExtensionAPI): Promise<string | null> {
+  const { stdout, code } = await pi.exec("git", ["branch", "--show-current"]);
+  if (code === 0 && stdout.trim()) {
+    return stdout.trim();
+  }
+  return null;
+}
+
+/**
+ * Get the default branch (main or master)
+ */
+async function getDefaultBranch(pi: ExtensionAPI): Promise<string> {
+  // Try to get from remote HEAD
+  const { stdout, code } = await pi.exec("git", [
+    "symbolic-ref",
+    "refs/remotes/origin/HEAD",
+    "--short",
+  ]);
+  if (code === 0 && stdout.trim()) {
+    return stdout.trim().replace("origin/", "");
+  }
+
+  // Fall back to checking if main or master exists
+  const branches = await getLocalBranches(pi);
+  if (branches.includes("main")) return "main";
+  if (branches.includes("master")) return "master";
+
+  return "main"; // Default fallback
+}
+
+/**
+ * Build the review prompt based on target
+ */
+async function buildReviewPrompt(
+  pi: ExtensionAPI,
+  target: ReviewTarget,
+): Promise<string> {
+  switch (target.type) {
+    case "uncommitted":
+      return UNCOMMITTED_PROMPT;
+
+    case "baseBranch": {
+      const mergeBase = await getMergeBase(pi, target.branch);
+      if (mergeBase) {
+        return BASE_BRANCH_PROMPT_WITH_MERGE_BASE.replace(
+          /{baseBranch}/g,
+          target.branch,
+        ).replace(/{mergeBaseSha}/g, mergeBase);
+      }
+      return BASE_BRANCH_PROMPT_FALLBACK.replace(/{branch}/g, target.branch);
+    }
+
+    case "commit":
+      if (target.title) {
+        return COMMIT_PROMPT_WITH_TITLE.replace("{sha}", target.sha).replace(
+          "{title}",
+          target.title,
+        );
+      }
+      return COMMIT_PROMPT.replace("{sha}", target.sha);
+
+    case "custom":
+      return target.instructions;
+
+    case "pullRequest": {
+      const mergeBase = await getMergeBase(pi, target.baseBranch);
+      if (mergeBase) {
+        return PULL_REQUEST_PROMPT.replace(
+          /{prNumber}/g,
+          String(target.prNumber),
+        )
+          .replace(/{title}/g, target.title)
+          .replace(/{baseBranch}/g, target.baseBranch)
+          .replace(/{mergeBaseSha}/g, mergeBase);
+      }
+      return PULL_REQUEST_PROMPT_FALLBACK.replace(
+        /{prNumber}/g,
+        String(target.prNumber),
+      )
+        .replace(/{title}/g, target.title)
+        .replace(/{baseBranch}/g, target.baseBranch);
+    }
+  }
+}
+
+/**
+ * Get user-facing hint for the review target
+ */
+function getUserFacingHint(target: ReviewTarget): string {
+  switch (target.type) {
+    case "uncommitted":
+      return "current changes";
+    case "baseBranch":
+      return `changes against '${target.branch}'`;
+    case "commit": {
+      const shortSha = target.sha.slice(0, 7);
+      return target.title
+        ? `commit ${shortSha}: ${target.title}`
+        : `commit ${shortSha}`;
+    }
+    case "custom":
+      return target.instructions.length > 40
+        ? target.instructions.slice(0, 37) + "..."
+        : target.instructions;
+
+    case "pullRequest": {
+      const shortTitle =
+        target.title.length > 30
+          ? target.title.slice(0, 27) + "..."
+          : target.title;
+      return `PR #${target.prNumber}: ${shortTitle}`;
+    }
+  }
+}
+
+// Review preset options for the selector
+const REVIEW_PRESETS = [
+  {
+    value: "pullRequest",
+    label: "Review a pull request",
+    description: "(GitHub PR)",
+  },
+  {
+    value: "baseBranch",
+    label: "Review against a base branch",
+    description: "(local)",
+  },
+  {
+    value: "uncommitted",
+    label: "Review uncommitted changes",
+    description: "",
+  },
+  { value: "commit", label: "Review a commit", description: "" },
+  { value: "custom", label: "Custom review instructions", description: "" },
+] as const;
+
+type SuperReviewModelConfig = {
+  provider: string;
+  id: string;
+  label?: string;
+  thinkingLevel?: ThinkingLevel;
+};
+
+type SuperReviewConfig = {
+  models: SuperReviewModelConfig[];
+  summaryModel?: SuperReviewModelConfig;
+  summaryPrompt?: string;
+  maxParallel?: number;
+};
+
+type SuperReviewMessageDetails =
+  | {
+      kind: "model";
+      model: SuperReviewModelConfig;
+      status: "success" | "error" | "aborted";
+      durationMs?: number;
+      hint: string;
+    }
+  | {
+      kind: "summary";
+      model?: SuperReviewModelConfig;
+      hint: string;
+    };
+
+type ConfigParseResult = {
+  config: SuperReviewConfig | null;
+  errors: string[];
+  warnings: string[];
+};
+
+type ConfigLoadResult = {
+  config: SuperReviewConfig;
+  path: string;
+  warnings: string[];
+};
+
+type ModelReviewResult = {
+  model: SuperReviewModelConfig;
+  label: string;
+  status: "success" | "error" | "aborted";
+  output: string;
+  error?: string;
+  durationMs: number;
+};
+
+function parseSuperReviewConfig(raw: string): ConfigParseResult {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return {
+      config: null,
+      errors: ["Config is not valid JSON."],
+      warnings: [],
+    };
+  }
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!data || typeof data !== "object") {
+    return {
+      config: null,
+      errors: ["Config must be a JSON object."],
+      warnings: [],
+    };
+  }
+
+  const root = data as Record<string, unknown>;
+  const modelsRaw = root.models;
+
+  if (!Array.isArray(modelsRaw)) {
+    errors.push("Config must include a 'models' array.");
+  }
+
+  const models: SuperReviewModelConfig[] = [];
+  const seen = new Set<string>();
+
+  if (Array.isArray(modelsRaw)) {
+    modelsRaw.forEach((entry, index) => {
+      if (!entry || typeof entry !== "object") {
+        errors.push(`models[${index}] must be an object.`);
+        return;
+      }
+
+      const model = entry as Record<string, unknown>;
+      const rawProvider = model.provider;
+      const rawId = model.id;
+      const rawLabel = model.label;
+      const thinkingLevel = model.thinkingLevel;
+
+      const provider =
+        typeof rawProvider === "string" ? rawProvider.trim() : "";
+      const id = typeof rawId === "string" ? rawId.trim() : "";
+      const label = typeof rawLabel === "string" ? rawLabel.trim() : undefined;
+
+      if (!provider) {
+        errors.push(`models[${index}].provider must be a string.`);
+        return;
+      }
+      if (!id) {
+        errors.push(`models[${index}].id must be a string.`);
+        return;
+      }
+      if (rawLabel !== undefined && typeof rawLabel !== "string") {
+        errors.push(`models[${index}].label must be a string if provided.`);
+        return;
+      }
+      if (thinkingLevel !== undefined) {
+        if (typeof thinkingLevel !== "string") {
+          errors.push(
+            `models[${index}].thinkingLevel must be a string if provided.`,
+          );
+          return;
+        }
+        if (!THINKING_LEVELS.has(thinkingLevel as ThinkingLevel)) {
+          errors.push(
+            `models[${index}].thinkingLevel must be one of ${Array.from(
+              THINKING_LEVELS,
+            ).join(", ")}.`,
+          );
+          return;
+        }
+      }
+
+      const key = `${provider}:${id}`;
+      if (seen.has(key)) {
+        warnings.push(
+          `Duplicate model entry for ${provider}/${id} ignored after the first occurrence.`,
+        );
+        return;
+      }
+      seen.add(key);
+
+      models.push({
+        provider,
+        id,
+        label,
+        thinkingLevel: thinkingLevel as ThinkingLevel | undefined,
+      });
+    });
+  }
+
+  if (models.length === 0) {
+    errors.push("Config must include at least one model.");
+  }
+
+  let summaryModel: SuperReviewModelConfig | undefined;
+  if (root.summaryModel !== undefined) {
+    const entry = root.summaryModel;
+    if (!entry || typeof entry !== "object") {
+      errors.push("summaryModel must be an object if provided.");
+    } else {
+      const model = entry as Record<string, unknown>;
+      const rawProvider = model.provider;
+      const rawId = model.id;
+      const rawLabel = model.label;
+      const thinkingLevel = model.thinkingLevel;
+
+      const provider =
+        typeof rawProvider === "string" ? rawProvider.trim() : "";
+      const id = typeof rawId === "string" ? rawId.trim() : "";
+      const label = typeof rawLabel === "string" ? rawLabel.trim() : undefined;
+
+      if (!provider) {
+        errors.push("summaryModel.provider must be a string.");
+      }
+      if (!id) {
+        errors.push("summaryModel.id must be a string.");
+      }
+      if (rawLabel !== undefined && typeof rawLabel !== "string") {
+        errors.push("summaryModel.label must be a string if provided.");
+      }
+      if (thinkingLevel !== undefined) {
+        if (typeof thinkingLevel !== "string") {
+          errors.push(
+            "summaryModel.thinkingLevel must be a string if provided.",
+          );
+        } else if (!THINKING_LEVELS.has(thinkingLevel as ThinkingLevel)) {
+          errors.push(
+            `summaryModel.thinkingLevel must be one of ${Array.from(
+              THINKING_LEVELS,
+            ).join(", ")}.`,
+          );
+        }
+      }
+
+      if (provider && id) {
+        summaryModel = {
+          provider,
+          id,
+          label,
+          thinkingLevel: thinkingLevel as ThinkingLevel | undefined,
+        };
+      }
+    }
+  } else if (models[0]) {
+    summaryModel = { ...models[0] };
+  }
+
+  const summaryPrompt = root.summaryPrompt;
+  if (summaryPrompt !== undefined && typeof summaryPrompt !== "string") {
+    errors.push("summaryPrompt must be a string if provided.");
+  }
+
+  const maxParallel = root.maxParallel;
+  if (maxParallel !== undefined) {
+    if (typeof maxParallel !== "number" || !Number.isFinite(maxParallel)) {
+      errors.push("maxParallel must be a number if provided.");
+    } else if (maxParallel <= 0) {
+      errors.push("maxParallel must be greater than 0.");
+    }
+  }
+
+  if (errors.length > 0) {
+    return { config: null, errors, warnings };
+  }
+
+  return {
+    config: {
+      models,
+      summaryModel,
+      summaryPrompt:
+        typeof summaryPrompt === "string" ? summaryPrompt : undefined,
+      maxParallel: typeof maxParallel === "number" ? maxParallel : undefined,
+    },
+    errors: [],
+    warnings,
+  };
+}
+
+async function findPiRoot(cwd: string): Promise<string | null> {
+  let currentDir = path.resolve(cwd);
+
+  while (true) {
+    const piDir = path.join(currentDir, ".pi");
+    const piStats = await fs.stat(piDir).catch(() => null);
+    if (piStats?.isDirectory()) {
+      return currentDir;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return null;
+    }
+    currentDir = parentDir;
+  }
+}
+
+async function getProjectConfigPath(cwd: string): Promise<string | null> {
+  const root = await findPiRoot(cwd);
+  if (!root) return null;
+  return path.join(root, ".pi", SUPER_REVIEW_CONFIG_FILENAME);
+}
+
+function getGlobalConfigPath(): string {
+  return path.join(getAgentDir(), SUPER_REVIEW_CONFIG_FILENAME);
+}
+
+async function readConfigFile(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function loadConfigFromPath(
+  filePath: string,
+): Promise<
+  | { config: SuperReviewConfig; warnings: string[] }
+  | { errors: string[]; warnings: string[]; raw: string }
+  | null
+> {
+  const raw = await readConfigFile(filePath);
+  if (raw === null) return null;
+
+  const parsed = parseSuperReviewConfig(raw);
+  if (parsed.config) {
+    return { config: parsed.config, warnings: parsed.warnings };
+  }
+
+  return { errors: parsed.errors, warnings: parsed.warnings, raw };
+}
+
+function getModelLabel(model: SuperReviewModelConfig): string {
+  return model.label?.trim() || `${model.provider}/${model.id}`;
+}
+
+async function buildConfigTemplate(ctx: ExtensionContext): Promise<string> {
+  const available = await ctx.modelRegistry.getAvailable();
+  const primary = ctx.model ?? available[0];
+  const secondary = primary
+    ? available.find(
+        (model) =>
+          model.provider !== primary.provider || model.id !== primary.id,
+      )
+    : undefined;
+
+  const models: SuperReviewModelConfig[] = [];
+  if (primary) {
+    models.push({
+      provider: primary.provider,
+      id: primary.id,
+      label: "Primary",
+    });
+  }
+  if (secondary) {
+    models.push({
+      provider: secondary.provider,
+      id: secondary.id,
+      label: "Secondary",
+    });
+  }
+
+  if (models.length === 0) {
+    models.push({
+      provider: "provider",
+      id: "model-id",
+      label: "Model A",
+    });
+  }
+
+  const config: SuperReviewConfig = {
+    models,
+    summaryModel: {
+      provider: models[0]!.provider,
+      id: models[0]!.id,
+    },
+  };
+
+  return JSON.stringify(config, null, 2);
+}
+
+async function editConfigLoop(
+  ctx: ExtensionContext,
+  title: string,
+  initialContent: string,
+  pathToSave: string,
+): Promise<ConfigLoadResult | null> {
+  let content = initialContent;
+
+  while (true) {
+    const edited = await ctx.ui.editor(title, content);
+
+    if (edited === undefined) {
+      return null;
+    }
+
+    const parsed = parseSuperReviewConfig(edited);
+    if (parsed.config) {
+      await fs.mkdir(path.dirname(pathToSave), { recursive: true });
+      await fs.writeFile(pathToSave, edited, "utf8");
+      return {
+        config: parsed.config,
+        path: pathToSave,
+        warnings: parsed.warnings,
+      };
+    }
+
+    ctx.ui.notify(`Invalid config: ${parsed.errors.join(" ")}`, "error");
+    content = edited;
+  }
+}
+
+async function ensureSuperReviewConfig(
+  ctx: ExtensionContext,
+): Promise<ConfigLoadResult | null> {
+  const projectPath = await getProjectConfigPath(ctx.cwd);
+  const globalPath = getGlobalConfigPath();
+  const candidates = [projectPath, globalPath].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  for (const filePath of candidates) {
+    const loaded = await loadConfigFromPath(filePath);
+    if (!loaded) continue;
+
+    if ("config" in loaded) {
+      if (loaded.warnings.length > 0) {
+        ctx.ui.notify(loaded.warnings.join(" "), "warning");
+      }
+      return {
+        config: loaded.config,
+        path: filePath,
+        warnings: loaded.warnings,
+      };
+    }
+
+    if (!ctx.hasUI) {
+      ctx.ui.notify(
+        `Invalid super-review config at ${filePath}: ${loaded.errors.join(" ")}`,
+        "error",
+      );
+      return null;
+    }
+
+    const wantsFix = await ctx.ui.confirm(
+      "Super-review config invalid",
+      `Fix ${filePath}?\n\n${loaded.errors.join(" ")}`,
+    );
+    if (!wantsFix) {
+      return null;
+    }
+
+    return editConfigLoop(
+      ctx,
+      "Edit super-review config",
+      loaded.raw,
+      filePath,
+    );
+  }
+
+  if (!ctx.hasUI) {
+    ctx.ui.notify(
+      `No super-review config found. Expected ${projectPath ?? globalPath}.`,
+      "error",
+    );
+    return null;
+  }
+
+  const targetPath = projectPath ?? globalPath;
+  const wantsCreate = await ctx.ui.confirm(
+    "Super-review config missing",
+    `Create ${targetPath}?`,
+  );
+  if (!wantsCreate) {
+    return null;
+  }
+
+  const template = await buildConfigTemplate(ctx);
+  return editConfigLoop(ctx, "Edit super-review config", template, targetPath);
+}
+
+async function mapWithConcurrencyLimit<TIn, TOut>(
+  items: TIn[],
+  concurrency: number,
+  fn: (item: TIn, index: number) => Promise<TOut>,
+): Promise<TOut[]> {
+  if (items.length === 0) return [];
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+  const results: TOut[] = new Array(items.length);
+  let nextIndex = 0;
+
+  const workers = new Array(limit).fill(null).map(async () => {
+    while (true) {
+      const current = nextIndex++;
+      if (current >= items.length) return;
+      results[current] = await fn(items[current], current);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+function buildPiArgs(
+  model: SuperReviewModelConfig,
+  prompt: string,
+  thinkingLevel?: ThinkingLevel,
+): string[] {
+  const args = [
+    "-p",
+    "--no-session",
+    "--provider",
+    model.provider,
+    "--model",
+    model.id,
+  ];
+
+  if (thinkingLevel) {
+    args.push("--thinking", thinkingLevel);
+  }
+
+  args.push(prompt);
+  return args;
+}
+
+async function runReviewModel(
+  pi: ExtensionAPI,
+  model: SuperReviewModelConfig,
+  prompt: string,
+  cwd: string,
+  thinkingLevel: ThinkingLevel | undefined,
+  signal: AbortSignal | undefined,
+): Promise<ModelReviewResult> {
+  const start = Date.now();
+  const args = buildPiArgs(model, prompt, model.thinkingLevel ?? thinkingLevel);
+
+  const result = await pi.exec("pi", args, { cwd, signal });
+  const durationMs = Date.now() - start;
+
+  if (signal?.aborted) {
+    return {
+      model,
+      label: getModelLabel(model),
+      status: "aborted",
+      output: "(aborted)",
+      error: "Review cancelled",
+      durationMs,
+    };
+  }
+
+  if (result.code !== 0) {
+    const errorMessage =
+      result.stderr.trim() || result.stdout.trim() || "Review failed";
+    return {
+      model,
+      label: getModelLabel(model),
+      status: "error",
+      output: errorMessage,
+      error: `pi exited with code ${result.code}`,
+      durationMs,
+    };
+  }
+
+  const output = result.stdout.trim();
+  if (!output) {
+    return {
+      model,
+      label: getModelLabel(model),
+      status: "error",
+      output: "(no output)",
+      error: "No output from model",
+      durationMs,
+    };
+  }
+
+  return {
+    model,
+    label: getModelLabel(model),
+    status: "success",
+    output,
+    durationMs,
+  };
+}
+
+async function runSuperReviewModels(
+  pi: ExtensionAPI,
+  models: SuperReviewModelConfig[],
+  prompt: string,
+  cwd: string,
+  thinkingLevel: ThinkingLevel | undefined,
+  maxParallel: number,
+  signal: AbortSignal | undefined,
+): Promise<ModelReviewResult[]> {
+  return mapWithConcurrencyLimit(models, maxParallel, (model) =>
+    runReviewModel(pi, model, prompt, cwd, thinkingLevel, signal),
+  );
+}
+
+async function generateSummary(
+  ctx: ExtensionContext,
+  summaryModel: SuperReviewModelConfig | undefined,
+  hint: string,
+  results: ModelReviewResult[],
+  signal: AbortSignal | undefined,
+  summaryPromptOverride?: string,
+): Promise<string | null> {
+  if (!summaryModel) return null;
+
+  const model = ctx.modelRegistry.find(summaryModel.provider, summaryModel.id);
+  if (!model) {
+    ctx.ui.notify(
+      `Summary model not found: ${summaryModel.provider}/${summaryModel.id}`,
+      "warning",
+    );
+    return null;
+  }
+
+  const apiKey = await ctx.modelRegistry.getApiKey(model);
+  if (!apiKey) {
+    ctx.ui.notify(
+      `No API key for summary model ${summaryModel.provider}/${summaryModel.id}`,
+      "warning",
+    );
+    return null;
+  }
+
+  const summaryPrompt = summaryPromptOverride
+    ? `${SUPER_REVIEW_SUMMARY_SYSTEM_PROMPT}\n\n${summaryPromptOverride}`
+    : SUPER_REVIEW_SUMMARY_SYSTEM_PROMPT;
+
+  const reportParts = results.map((result) => {
+    const statusLine =
+      result.status === "success"
+        ? ""
+        : `\nStatus: ${result.status.toUpperCase()}`;
+    const errorLine = result.error ? `\nError: ${result.error}` : "";
+    return [
+      `## ${result.label}`,
+      `Model: ${result.model.provider}/${result.model.id}`,
+      statusLine + errorLine,
+      "",
+      result.output,
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+  });
+
+  const userMessage: UserMessage = {
+    role: "user",
+    content: [
+      {
+        type: "text",
+        text: [
+          `Review target: ${hint}`,
+          "",
+          "Review reports:",
+          "",
+          reportParts.join("\n\n"),
+        ].join("\n"),
+      },
+    ],
+    timestamp: Date.now(),
+  };
+
+  const response = await complete(
+    model,
+    { systemPrompt: summaryPrompt, messages: [userMessage] },
+    { apiKey, signal },
+  );
+
+  if (response.stopReason === "aborted") {
+    return null;
+  }
+
+  return response.content
+    .filter((c): c is { type: "text"; text: string } => c.type === "text")
+    .map((c) => c.text)
+    .join("\n");
+}
+
+/**
+ * Determine the smart default review type based on git state
+ */
+async function getSmartDefault(
+  pi: ExtensionAPI,
+): Promise<"uncommitted" | "baseBranch" | "commit"> {
+  // Priority 1: If there are uncommitted changes, default to reviewing them
+  if (await hasUncommittedChanges(pi)) {
+    return "uncommitted";
+  }
+
+  // Priority 2: If on a feature branch (not the default branch), default to PR-style review
+  const currentBranch = await getCurrentBranch(pi);
+  const defaultBranch = await getDefaultBranch(pi);
+  if (currentBranch && currentBranch !== defaultBranch) {
+    return "baseBranch";
+  }
+
+  // Priority 3: Default to reviewing a specific commit
+  return "commit";
+}
+
+/**
+ * Show the review preset selector
+ */
+async function showReviewSelector(
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+): Promise<ReviewTarget | null> {
+  // Determine smart default and reorder items
+  const smartDefault = await getSmartDefault(pi);
+  const items: SelectItem[] = REVIEW_PRESETS.slice() // copy to avoid mutating original
+    .sort((a, b) => {
+      // Put smart default first
+      if (a.value === smartDefault) return -1;
+      if (b.value === smartDefault) return 1;
+      return 0;
+    })
+    .map((preset) => ({
+      value: preset.value,
+      label: preset.label,
+      description: preset.description,
+    }));
+
+  while (true) {
+    const result = await ctx.ui.custom<string | null>(
+      (tui, theme, _kb, done) => {
+        const container = new Container();
+        container.addChild(
+          new DynamicBorder((str: string) => theme.fg("accent", str)),
+        );
+        container.addChild(
+          new Text(theme.fg("accent", theme.bold("Select a review preset"))),
+        );
+
+        const selectList = new SelectList(items, Math.min(items.length, 10), {
+          selectedPrefix: (text) => theme.fg("accent", text),
+          selectedText: (text) => theme.fg("accent", text),
+          description: (text) => theme.fg("muted", text),
+          scrollInfo: (text) => theme.fg("dim", text),
+          noMatch: (text) => theme.fg("warning", text),
+        });
+
+        selectList.onSelect = (item) => done(item.value);
+        selectList.onCancel = () => done(null);
+
+        container.addChild(selectList);
+        container.addChild(
+          new Text(theme.fg("dim", "Press enter to confirm or esc to go back")),
+        );
+        container.addChild(
+          new DynamicBorder((str: string) => theme.fg("accent", str)),
+        );
+
+        return {
+          render(width: number) {
+            return container.render(width);
+          },
+          invalidate() {
+            container.invalidate();
+          },
+          handleInput(data: string) {
+            selectList.handleInput(data);
+            tui.requestRender();
+          },
+        };
+      },
+    );
+
+    if (!result) return null;
+
+    // Handle each preset type
+    switch (result) {
+      case "uncommitted":
+        return { type: "uncommitted" };
+
+      case "baseBranch": {
+        const target = await showBranchSelector(ctx, pi);
+        if (target) return target;
+        break;
+      }
+
+      case "commit": {
+        const target = await showCommitSelector(ctx, pi);
+        if (target) return target;
+        break;
+      }
+
+      case "custom": {
+        const target = await showCustomInput(ctx);
+        if (target) return target;
+        break;
+      }
+
+      case "pullRequest": {
+        const target = await showPrInput(ctx, pi);
+        if (target) return target;
+        break;
+      }
+
+      default:
+        return null;
+    }
+  }
+}
+
+/**
+ * Show branch selector for base branch review
+ */
+async function showBranchSelector(
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+): Promise<ReviewTarget | null> {
+  const branches = await getLocalBranches(pi);
+  const defaultBranch = await getDefaultBranch(pi);
+
+  if (branches.length === 0) {
+    ctx.ui.notify("No branches found", "error");
+    return null;
+  }
+
+  // Sort branches with default branch first
+  const sortedBranches = branches.sort((a, b) => {
+    if (a === defaultBranch) return -1;
+    if (b === defaultBranch) return 1;
+    return a.localeCompare(b);
+  });
+
+  const items: SelectItem[] = sortedBranches.map((branch) => ({
+    value: branch,
+    label: branch,
+    description: branch === defaultBranch ? "(default)" : "",
+  }));
+
+  const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
+    const container = new Container();
+    container.addChild(
+      new DynamicBorder((str: string) => theme.fg("accent", str)),
+    );
+    container.addChild(
+      new Text(theme.fg("accent", theme.bold("Select base branch"))),
+    );
+
+    const selectList = new SelectList(items, Math.min(items.length, 10), {
+      selectedPrefix: (text) => theme.fg("accent", text),
+      selectedText: (text) => theme.fg("accent", text),
+      description: (text) => theme.fg("muted", text),
+      scrollInfo: (text) => theme.fg("dim", text),
+      noMatch: (text) => theme.fg("warning", text),
+    });
+
+    selectList.onSelect = (item) => done(item.value);
+    selectList.onCancel = () => done(null);
+
+    container.addChild(selectList);
+    container.addChild(
+      new Text(
+        theme.fg("dim", "↑↓ navigate • enter to select • esc to cancel"),
+      ),
+    );
+    container.addChild(
+      new DynamicBorder((str: string) => theme.fg("accent", str)),
+    );
+
+    return {
+      render(width: number) {
+        return container.render(width);
+      },
+      invalidate() {
+        container.invalidate();
+      },
+      handleInput(data: string) {
+        selectList.handleInput(data);
+        tui.requestRender();
+      },
+    };
+  });
+
+  if (!result) return null;
+  return { type: "baseBranch", branch: result };
+}
+
+/**
+ * Show commit selector
+ */
+async function showCommitSelector(
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+): Promise<ReviewTarget | null> {
+  const commits = await getRecentCommits(pi, 20);
+
+  if (commits.length === 0) {
+    ctx.ui.notify("No commits found", "error");
+    return null;
+  }
+
+  const items: SelectItem[] = commits.map((commit) => ({
+    value: commit.sha,
+    label: `${commit.sha.slice(0, 7)} ${commit.title}`,
+    description: "",
+  }));
+
+  const result = await ctx.ui.custom<{ sha: string; title: string } | null>(
+    (tui, theme, _kb, done) => {
+      const container = new Container();
+      container.addChild(
+        new DynamicBorder((str: string) => theme.fg("accent", str)),
+      );
+      container.addChild(
+        new Text(theme.fg("accent", theme.bold("Select commit to review"))),
+      );
+
+      const selectList = new SelectList(items, Math.min(items.length, 10), {
+        selectedPrefix: (text) => theme.fg("accent", text),
+        selectedText: (text) => theme.fg("accent", text),
+        description: (text) => theme.fg("muted", text),
+        scrollInfo: (text) => theme.fg("dim", text),
+        noMatch: (text) => theme.fg("warning", text),
+      });
+
+      selectList.onSelect = (item) => {
+        const commit = commits.find((c) => c.sha === item.value);
+        if (commit) {
+          done(commit);
+        } else {
+          done(null);
+        }
+      };
+      selectList.onCancel = () => done(null);
+
+      container.addChild(selectList);
+      container.addChild(
+        new Text(
+          theme.fg("dim", "↑↓ navigate • enter to select • esc to cancel"),
+        ),
+      );
+      container.addChild(
+        new DynamicBorder((str: string) => theme.fg("accent", str)),
+      );
+
+      return {
+        render(width: number) {
+          return container.render(width);
+        },
+        invalidate() {
+          container.invalidate();
+        },
+        handleInput(data: string) {
+          selectList.handleInput(data);
+          tui.requestRender();
+        },
+      };
+    },
+  );
+
+  if (!result) return null;
+  return { type: "commit", sha: result.sha, title: result.title };
+}
+
+/**
+ * Show custom instructions input
+ */
+async function showCustomInput(
+  ctx: ExtensionContext,
+): Promise<ReviewTarget | null> {
+  const result = await ctx.ui.editor(
+    "Enter review instructions:",
+    "Review the code for security vulnerabilities and potential bugs...",
+  );
+
+  if (!result?.trim()) return null;
+  return { type: "custom", instructions: result.trim() };
+}
+
+/**
+ * Show PR input and handle checkout
+ */
+async function showPrInput(
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+): Promise<ReviewTarget | null> {
+  // First check for pending changes that would prevent branch switching
+  if (await hasPendingChanges(pi)) {
+    ctx.ui.notify(
+      "Cannot checkout PR: you have uncommitted changes. Please commit or stash them first.",
+      "error",
+    );
+    return null;
+  }
+
+  // Get PR reference from user
+  const prRef = await ctx.ui.editor(
+    "Enter PR number or URL (e.g. 123 or https://github.com/owner/repo/pull/123):",
+    "",
+  );
+
+  if (!prRef?.trim()) return null;
+
+  const prNumber = parsePrReference(prRef);
+  if (!prNumber) {
+    ctx.ui.notify(
+      "Invalid PR reference. Enter a number or GitHub PR URL.",
+      "error",
+    );
+    return null;
+  }
+
+  // Get PR info from GitHub
+  ctx.ui.notify(`Fetching PR #${prNumber} info...`, "info");
+  const prInfo = await getPrInfo(pi, prNumber);
+
+  if (!prInfo) {
+    ctx.ui.notify(
+      `Could not find PR #${prNumber}. Make sure gh is authenticated and the PR exists.`,
+      "error",
+    );
+    return null;
+  }
+
+  // Check again for pending changes (in case something changed)
+  if (await hasPendingChanges(pi)) {
+    ctx.ui.notify(
+      "Cannot checkout PR: you have uncommitted changes. Please commit or stash them first.",
+      "error",
+    );
+    return null;
+  }
+
+  // Checkout the PR
+  ctx.ui.notify(`Checking out PR #${prNumber}...`, "info");
+  const checkoutResult = await checkoutPr(pi, prNumber);
+
+  if (!checkoutResult.success) {
+    ctx.ui.notify(`Failed to checkout PR: ${checkoutResult.error}`, "error");
+    return null;
+  }
+
+  ctx.ui.notify(`Checked out PR #${prNumber} (${prInfo.headBranch})`, "info");
+
+  return {
+    type: "pullRequest",
+    prNumber,
+    baseBranch: prInfo.baseBranch,
+    title: prInfo.title,
+  };
+}
+
+/**
+ * Parse command arguments for direct invocation
+ * Returns the target or a special marker for PR that needs async handling
+ */
+function parseArgs(
+  args: string | undefined,
+): ReviewTarget | { type: "pr"; ref: string } | null {
+  if (!args?.trim()) return null;
+
+  const parts = args.trim().split(/\s+/);
+  const subcommand = parts[0]?.toLowerCase();
+
+  switch (subcommand) {
+    case "uncommitted":
+      return { type: "uncommitted" };
+
+    case "branch": {
+      const branch = parts[1];
+      if (!branch) return null;
+      return { type: "baseBranch", branch };
+    }
+
+    case "commit": {
+      const sha = parts[1];
+      if (!sha) return null;
+      const title = parts.slice(2).join(" ") || undefined;
+      return { type: "commit", sha, title };
+    }
+
+    case "custom": {
+      const instructions = parts.slice(1).join(" ");
+      if (!instructions) return null;
+      return { type: "custom", instructions };
+    }
+
+    case "pr": {
+      const ref = parts[1];
+      if (!ref) return null;
+      return { type: "pr", ref };
+    }
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Handle PR checkout and return a ReviewTarget (or null on failure)
+ */
+async function handlePrCheckout(
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+  ref: string,
+): Promise<ReviewTarget | null> {
+  // First check for pending changes
+  if (await hasPendingChanges(pi)) {
+    ctx.ui.notify(
+      "Cannot checkout PR: you have uncommitted changes. Please commit or stash them first.",
+      "error",
+    );
+    return null;
+  }
+
+  const prNumber = parsePrReference(ref);
+  if (!prNumber) {
+    ctx.ui.notify(
+      "Invalid PR reference. Enter a number or GitHub PR URL.",
+      "error",
+    );
+    return null;
+  }
+
+  // Get PR info
+  ctx.ui.notify(`Fetching PR #${prNumber} info...`, "info");
+  const prInfo = await getPrInfo(pi, prNumber);
+
+  if (!prInfo) {
+    ctx.ui.notify(
+      `Could not find PR #${prNumber}. Make sure gh is authenticated and the PR exists.`,
+      "error",
+    );
+    return null;
+  }
+
+  // Checkout the PR
+  ctx.ui.notify(`Checking out PR #${prNumber}...`, "info");
+  const checkoutResult = await checkoutPr(pi, prNumber);
+
+  if (!checkoutResult.success) {
+    ctx.ui.notify(`Failed to checkout PR: ${checkoutResult.error}`, "error");
+    return null;
+  }
+
+  ctx.ui.notify(`Checked out PR #${prNumber} (${prInfo.headBranch})`, "info");
+
+  return {
+    type: "pullRequest",
+    prNumber,
+    baseBranch: prInfo.baseBranch,
+    title: prInfo.title,
+  };
+}
+
+function formatDuration(durationMs: number): string {
+  const seconds = durationMs / 1000;
+  if (seconds < 1) return `${Math.round(durationMs)}ms`;
+  return `${seconds.toFixed(1)}s`;
+}
+
+export default function superReviewExtension(pi: ExtensionAPI) {
+  pi.on("session_start", (_event, ctx) => {
+    applySuperReviewState(ctx);
+  });
+
+  pi.on("session_switch", (_event, ctx) => {
+    applySuperReviewState(ctx);
+  });
+
+  pi.on("session_tree", (_event, ctx) => {
+    applySuperReviewState(ctx);
+  });
+
+  pi.registerMessageRenderer("super-review", (message, _options, theme) => {
+    const details = message.details as SuperReviewMessageDetails | undefined;
+    const mdTheme = getMarkdownTheme();
+    const container = new Container();
+
+    if (details?.kind === "summary") {
+      const title = theme.fg("accent", theme.bold("Super Review Summary"));
+      container.addChild(new Text(title, 0, 0));
+
+      const metaParts: string[] = [];
+      if (details.model) {
+        metaParts.push(`${details.model.provider}/${details.model.id}`);
+      }
+      metaParts.push(`Target: ${details.hint}`);
+      container.addChild(
+        new Text(theme.fg("muted", metaParts.join(" • ")), 0, 0),
+      );
+    } else if (details?.kind === "model") {
+      const title = theme.fg(
+        "accent",
+        theme.bold(`Super Review — ${getModelLabel(details.model)}`),
+      );
+      container.addChild(new Text(title, 0, 0));
+
+      const metaParts: string[] = [
+        `${details.model.provider}/${details.model.id}`,
+        `Target: ${details.hint}`,
+      ];
+      if (details.durationMs) {
+        metaParts.push(formatDuration(details.durationMs));
+      }
+      if (details.status !== "success") {
+        metaParts.push(details.status.toUpperCase());
+      }
+      container.addChild(
+        new Text(theme.fg("muted", metaParts.join(" • ")), 0, 0),
+      );
+    }
+
+    const text = typeof message.content === "string" ? message.content : "";
+    container.addChild(new Markdown(text, 0, 0, mdTheme));
+    return container;
+  });
+
+  // Register the /super-review command
+  pi.registerCommand("super-review", {
+    description: "Run a multi-model code review",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("Super-review requires interactive mode", "error");
+        return;
+      }
+
+      if (superReviewOriginId) {
+        ctx.ui.notify(
+          "Already in a super-review. Use /end-super-review to finish first.",
+          "warning",
+        );
+        return;
+      }
+
+      const reviewState = getReviewState(ctx);
+      if (reviewState?.active) {
+        ctx.ui.notify(
+          "A /review session is already active. Use /end-review to finish first.",
+          "warning",
+        );
+        return;
+      }
+
+      // Check if we're in a git repository
+      const { code } = await pi.exec("git", ["rev-parse", "--git-dir"]);
+      if (code !== 0) {
+        ctx.ui.notify("Not a git repository", "error");
+        return;
+      }
+
+      const configResult = await ensureSuperReviewConfig(ctx);
+      if (!configResult) {
+        ctx.ui.notify("Super-review cancelled", "info");
+        return;
+      }
+
+      const { config } = configResult;
+
+      if (config.models.length < 2) {
+        ctx.ui.notify(
+          "Super-review config has fewer than 2 models; running with the available models.",
+          "warning",
+        );
+      }
+
+      // Try to parse direct arguments
+      let target: ReviewTarget | null = null;
+      let fromSelector = false;
+      const parsed = parseArgs(args);
+
+      if (parsed) {
+        if (parsed.type === "pr") {
+          // Handle PR checkout (async operation)
+          target = await handlePrCheckout(ctx, pi, parsed.ref);
+          if (!target) {
+            ctx.ui.notify(
+              "PR review failed. Returning to review menu.",
+              "warning",
+            );
+          }
+        } else {
+          target = parsed;
+        }
+      }
+
+      // If no args or invalid args, show selector
+      if (!target) {
+        fromSelector = true;
+      }
+
+      while (true) {
+        if (!target && fromSelector) {
+          target = await showReviewSelector(ctx, pi);
+        }
+
+        if (!target) {
+          ctx.ui.notify("Super-review cancelled", "info");
+          return;
+        }
+
+        // Determine if we should use fresh session mode
+        const entries = ctx.sessionManager.getEntries();
+        const messageCount = entries.filter((e) => e.type === "message").length;
+
+        let useFreshSession = false;
+
+        if (messageCount > 0) {
+          const choice = await ctx.ui.select("Start super-review in:", [
+            "Empty branch",
+            "Current session",
+          ]);
+
+          if (choice === undefined) {
+            if (fromSelector) {
+              target = null;
+              continue;
+            }
+            ctx.ui.notify("Super-review cancelled", "info");
+            return;
+          }
+
+          useFreshSession = choice === "Empty branch";
+        }
+
+        const hint = getUserFacingHint(target);
+        const projectGuidelines = await loadProjectReviewGuidelines(ctx.cwd);
+        const prompt = await buildReviewPrompt(pi, target);
+
+        let fullPrompt = `${REVIEW_RUBRIC}\n\n---\n\nPlease perform a code review with the following focus:\n\n${prompt}`;
+
+        if (projectGuidelines) {
+          fullPrompt += `\n\nThis project has additional instructions for code reviews:\n\n${projectGuidelines}`;
+        }
+
+        const thinkingLevel = pi.getThinkingLevel();
+        const maxParallel = config.maxParallel ?? config.models.length;
+        const summaryModel = config.summaryModel ?? config.models[0];
+        const summaryPromptOverride = config.summaryPrompt;
+
+        if (useFreshSession) {
+          const originId = ctx.sessionManager.getLeafId() ?? undefined;
+          if (!originId) {
+            ctx.ui.notify(
+              "Failed to determine review origin. Try again from a session with messages.",
+              "error",
+            );
+            return;
+          }
+          superReviewOriginId = originId;
+
+          const lockedOriginId = originId;
+
+          const entries = ctx.sessionManager.getEntries();
+          const firstUserMessage = entries.find(
+            (e) => e.type === "message" && e.message.role === "user",
+          );
+
+          if (!firstUserMessage) {
+            ctx.ui.notify("No user message found in session", "error");
+            superReviewOriginId = undefined;
+            return;
+          }
+
+          try {
+            const result = await ctx.navigateTree(firstUserMessage.id, {
+              summarize: false,
+              label: "super-review",
+            });
+            if (result.cancelled) {
+              superReviewOriginId = undefined;
+              return;
+            }
+          } catch (error) {
+            superReviewOriginId = undefined;
+            ctx.ui.notify(
+              `Failed to start super-review: ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            );
+            return;
+          }
+
+          superReviewOriginId = lockedOriginId;
+          ctx.ui.setEditorText("");
+          setSuperReviewWidget(ctx, true);
+          pi.appendEntry(SUPER_REVIEW_STATE_TYPE, {
+            active: true,
+            originId: lockedOriginId,
+          });
+        }
+
+        const modeHint = useFreshSession
+          ? " (empty branch)"
+          : " (current session)";
+
+        ctx.ui.notify(
+          `Starting super-review: ${hint} (${config.models.length} model${
+            config.models.length === 1 ? "" : "s"
+          })${modeHint}`,
+          "info",
+        );
+
+        const runResult = await ctx.ui.custom<{
+          results: ModelReviewResult[];
+          summary: string | null;
+        } | null>((tui, theme, _kb, done) => {
+          const loader = new BorderedLoader(
+            tui,
+            theme,
+            "Running super-review...",
+          );
+          loader.onAbort = () => done(null);
+
+          const doRun = async () => {
+            const results = await runSuperReviewModels(
+              pi,
+              config.models,
+              fullPrompt,
+              ctx.cwd,
+              thinkingLevel,
+              Math.max(1, maxParallel),
+              loader.signal,
+            );
+
+            if (loader.signal.aborted) {
+              return null;
+            }
+
+            const summary = await generateSummary(
+              ctx,
+              summaryModel,
+              hint,
+              results,
+              loader.signal,
+              summaryPromptOverride,
+            );
+
+            if (loader.signal.aborted) {
+              return null;
+            }
+
+            return { results, summary };
+          };
+
+          doRun()
+            .then((result) => done(result))
+            .catch(() => done(null));
+
+          return loader;
+        });
+
+        if (runResult === null) {
+          ctx.ui.notify("Super-review cancelled", "info");
+
+          if (useFreshSession && superReviewOriginId) {
+            try {
+              const result = await ctx.navigateTree(superReviewOriginId, {
+                summarize: false,
+              });
+              if (!result.cancelled) {
+                setSuperReviewWidget(ctx, false);
+                superReviewOriginId = undefined;
+                pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
+              }
+            } catch {
+              // ignore cleanup errors
+            }
+          }
+
+          return;
+        }
+
+        for (const result of runResult.results) {
+          const content =
+            result.status === "success"
+              ? result.output
+              : `${result.output}${result.error ? `\n\nError: ${result.error}` : ""}`;
+          const details: SuperReviewMessageDetails = {
+            kind: "model",
+            model: result.model,
+            status: result.status,
+            durationMs: result.durationMs,
+            hint,
+          };
+
+          pi.sendMessage({
+            customType: "super-review",
+            content,
+            display: true,
+            details,
+          });
+        }
+
+        if (runResult.summary) {
+          const details: SuperReviewMessageDetails = {
+            kind: "summary",
+            model: summaryModel,
+            hint,
+          };
+
+          pi.sendMessage({
+            customType: "super-review",
+            content: runResult.summary,
+            display: true,
+            details,
+          });
+        }
+
+        const completionMessage = useFreshSession
+          ? "Super-review complete. Use /end-super-review to return."
+          : "Super-review complete (current session).";
+        ctx.ui.notify(completionMessage, "info");
+        return;
+      }
+    },
+  });
+
+  // Register the /end-super-review command
+  pi.registerCommand("end-super-review", {
+    description: "Complete super-review and return to original position",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("End-super-review requires interactive mode", "error");
+        return;
+      }
+
+      if (!superReviewOriginId) {
+        const state = getSuperReviewState(ctx);
+        if (state?.active && state.originId) {
+          superReviewOriginId = state.originId;
+        } else if (state?.active) {
+          setSuperReviewWidget(ctx, false);
+          pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
+          ctx.ui.notify(
+            "Super-review state was missing origin info; cleared status.",
+            "warning",
+          );
+          return;
+        } else {
+          const hasSuperReviewMessages = ctx.sessionManager
+            .getBranch()
+            .some((entry) => {
+              if (entry.type !== "message") return false;
+              const message = entry.message as { customType?: string };
+              return message.customType === "super-review";
+            });
+
+          const message = hasSuperReviewMessages
+            ? "Super-review results are in the current session. /end-super-review is only for empty-branch runs."
+            : "Not in a super-review branch (run /super-review and choose Empty branch to use /end-super-review).";
+          ctx.ui.notify(message, "info");
+          return;
+        }
+      }
+
+      const summaryChoice = await ctx.ui.select("Summarize super-review?", [
+        "Summarize",
+        "No summary",
+      ]);
+
+      if (summaryChoice === undefined) {
+        ctx.ui.notify("Cancelled. Use /end-super-review to try again.", "info");
+        return;
+      }
+
+      const wantsSummary = summaryChoice === "Summarize";
+      const originId = superReviewOriginId;
+
+      if (wantsSummary) {
+        const result = await ctx.ui.custom<{
+          cancelled: boolean;
+          error?: string;
+        } | null>((tui, theme, _kb, done) => {
+          const loader = new BorderedLoader(
+            tui,
+            theme,
+            "Summarizing super-review branch...",
+          );
+          loader.onAbort = () => done(null);
+
+          ctx
+            .navigateTree(originId!, {
+              summarize: true,
+              customInstructions: SUPER_REVIEW_BRANCH_SUMMARY_PROMPT,
+              replaceInstructions: true,
+            })
+            .then(done)
+            .catch((err) =>
+              done({
+                cancelled: false,
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            );
+
+          return loader;
+        });
+
+        if (result === null) {
+          ctx.ui.notify(
+            "Summarization cancelled. Use /end-super-review to try again.",
+            "info",
+          );
+          return;
+        }
+
+        if (result.error) {
+          ctx.ui.notify(`Summarization failed: ${result.error}`, "error");
+          return;
+        }
+
+        setSuperReviewWidget(ctx, false);
+        superReviewOriginId = undefined;
+        pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
+
+        if (result.cancelled) {
+          ctx.ui.notify("Navigation cancelled", "info");
+          return;
+        }
+
+        if (!ctx.ui.getEditorText().trim()) {
+          ctx.ui.setEditorText("Act on the super review");
+        }
+
+        ctx.ui.notify(
+          "Super-review complete! Returned to original position.",
+          "info",
+        );
+      } else {
+        try {
+          const result = await ctx.navigateTree(originId!, {
+            summarize: false,
+          });
+
+          if (result.cancelled) {
+            ctx.ui.notify(
+              "Navigation cancelled. Use /end-super-review to try again.",
+              "info",
+            );
+            return;
+          }
+
+          setSuperReviewWidget(ctx, false);
+          superReviewOriginId = undefined;
+          pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
+          ctx.ui.notify(
+            "Super-review complete! Returned to original position.",
+            "info",
+          );
+        } catch (error) {
+          ctx.ui.notify(
+            `Failed to return: ${error instanceof Error ? error.message : String(error)}`,
+            "error",
+          );
+        }
+      }
+    },
+  });
+}
