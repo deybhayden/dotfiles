@@ -10,3 +10,5 @@ Read and understand all of the principals that we have lined out in the Review G
 In each comment posted within the code review, I want you to include:
 
 "🦾 Mecha-Ben:" to make it clear that while my github user is being used, the actual review is being done by Codex.
+
+If there is nothing substantial enough to warrant a change, just comment and let the developer they did a good job in a goofy way.
