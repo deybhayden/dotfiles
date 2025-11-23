@@ -33,11 +33,6 @@ cdx() {
     if [[ "$1" == "update" ]]; then
         npm install -g @openai/codex@latest
     else
-        codex \
-          --model 'gpt-5.1-codex-max' \
-          --dangerously-bypass-approvals-and-sandbox \
-          -c model_reasoning_summary_format=experimental \
-          --enable web_search_request \
-          "$@"
+        codex "$@"
     fi
 }

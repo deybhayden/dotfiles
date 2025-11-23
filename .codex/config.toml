@@ -1,0 +1,8 @@
+model = "gpt-5.1-codex-max"
+model_reasoning_effort = "high"
+tool_output_token_limit = 25000
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+
+[features]
+web_search_request = true
