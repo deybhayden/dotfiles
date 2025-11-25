@@ -80,7 +80,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   nvm install lts/jod
   nvm alias default lts/jod
   nvm use default
-  npm install -g @openai/codex @anthropic-ai/claude-code
+  npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
 
   # Otpgen
   echo "Installing otpgen"
