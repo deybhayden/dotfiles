@@ -25,7 +25,7 @@ cld() {
     if [[ "$1" == "update" ]]; then
         npm install -g @anthropic-ai/claude-code@latest
     else
-        PATH="$REPO_DIR/surton/agent-tools/browser-tools:$PATH" claude --dangerously-skip-permissions "$@"
+        claude --dangerously-skip-permissions "$@"
     fi
 }
 
@@ -33,6 +33,6 @@ cdx() {
     if [[ "$1" == "update" ]]; then
         npm install -g @openai/codex@latest
     else
-        PATH="$REPO_DIR/surton/agent-tools/browser-tools:$PATH" codex "$@"
+        codex "$@"
     fi
 }
