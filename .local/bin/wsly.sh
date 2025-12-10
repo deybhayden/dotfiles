@@ -82,6 +82,9 @@ if ! command -v zsh >/dev/null 2>&1; then
   nvm use default
   npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
 
+  # Opencode
+  curl -fsSL https://opencode.ai/install | bash
+
   # Otpgen
   echo "Installing otpgen"
   mkdir -p $REPO_DIR/tools
