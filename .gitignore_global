@@ -14,4 +14,5 @@ node_modules
 
 # AI
 .claude
+!.claude/settings.json
 !.claude/commands/

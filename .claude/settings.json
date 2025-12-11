@@ -1,0 +1,10 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "defaultMode": "default"
+  },
+  "model": "opus",
+  "env": {
+    "MAX_THINKING_TOKENS": "16000"
+  }
+}
