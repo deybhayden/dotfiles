@@ -1,7 +1,7 @@
 ## General
 
-- Use conventional commits for git commit messages
-- Do not use emojis
+- Follow conventional commits format with tight scopes.
+- Do not use emojis.
 
 ## Tools
 
