@@ -44,3 +44,11 @@ gmi() {
         gemini "$@"
     fi
 }
+
+update-ai-tools() {
+  claude update
+  npm install -g @openai/codex@latest
+  echo "\033[0;32mCodex updated.\033[0m"
+  npm install -g @google/gemini-cli
+  echo "\033[0;32mGemini updated.\033[0m"
+}
