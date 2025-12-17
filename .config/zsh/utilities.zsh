@@ -36,3 +36,11 @@ cdx() {
         codex "$@"
     fi
 }
+
+gmi() {
+    if [[ "$1" == "update" ]]; then
+        npm install -g @google/gemini-cli
+    else
+        gemini "$@"
+    fi
+}
