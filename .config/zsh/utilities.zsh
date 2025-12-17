@@ -23,7 +23,7 @@ function zulu() {
 # ai tools
 cld() {
     if [[ "$1" == "update" ]]; then
-        npm install -g @anthropic-ai/claude-code@latest
+        claude update
     else
         claude --dangerously-skip-permissions "$@"
     fi

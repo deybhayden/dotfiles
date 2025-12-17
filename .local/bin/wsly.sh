@@ -80,7 +80,10 @@ if ! command -v zsh >/dev/null 2>&1; then
   nvm install lts/jod
   nvm alias default lts/jod
   nvm use default
-  npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
+  npm install -g @google/gemini-cli @openai/codex
+
+  # Claude
+  curl -fsSL https://claude.ai/install.sh | bash
 
   # Opencode
   curl -fsSL https://opencode.ai/install | bash
