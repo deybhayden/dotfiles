@@ -1,4 +1,4 @@
-model = "gpt-5.1-codex-max"
+model = "gpt-5.2-codex"
 model_reasoning_effort = "xhigh"
 tool_output_token_limit = 25000
 approval_policy = "never"
