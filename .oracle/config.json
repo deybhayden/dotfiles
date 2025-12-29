@@ -1,6 +1,0 @@
-{
-  "model": "gpt-5.2-pro",
-  "engine": "api",
-  "search": true,
-  "filesReport": true
-}
