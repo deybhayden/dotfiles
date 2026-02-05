@@ -19,17 +19,17 @@ function pi-update() {
 }
 
 function pi-bb-review() {
-  pi --provider openai-codex --model gpt-5.2-codex --thinking xhigh "/bitbucket review $@"
+  pi --provider openai-codex --model gpt-5.3-codex --thinking xhigh "/bitbucket review $@"
 }
 
 function pi-bb-respond() {
-  pi --provider anthropic --model opus-4-5 --thinking high "/bitbucket respond $@"
+  pi --provider anthropic --model opus-4-6 --thinking high "/bitbucket respond $@"
 }
 
 function pi-gh-review() {
-  pi --provider openai-codex --model gpt-5.2-codex --thinking xhigh "/github review $@"
+  pi --provider openai-codex --model gpt-5.3-codex --thinking xhigh "/github review $@"
 }
 
 function pi-gh-respond() {
-  pi --provider anthropic --model opus-4-5 --thinking high "/github respond $@"
+  pi --provider anthropic --model opus-4-6 --thinking high "/github respond $@"
 }

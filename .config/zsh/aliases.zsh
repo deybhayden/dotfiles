@@ -37,7 +37,7 @@ alias aws-sso="aws sso login --sso-session"
 alias aws-whoami="aws sts get-caller-identity"
 
 # pi
-alias pi-code-review="pi --provider openai-codex --model gpt-5.2-codex --thinking xhigh '/review'"
-alias pi-thinker="pi --provider openai-codex --model gpt-5.2-codex --thinking xhigh"
-alias pi-builder="pi --provider anthropic --model claude-opus-4-5 --thinking high"
+alias pi-code-review="pi --provider openai-codex --model gpt-5.3-codex --thinking xhigh '/review'"
+alias pi-thinker="pi --provider openai-codex --model gpt-5.3-codex --thinking xhigh"
+alias pi-builder="pi --provider anthropic --model claude-opus-4-6 --thinking high"
 alias pi-chore="pi --provider anthropic --model claude-sonnet-4-5 --thinking medium"
