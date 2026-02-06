@@ -56,3 +56,37 @@ function gsmash() {
   git commit -a --no-edit --amend
   git push origin "$(git_current_branch)" --force-with-lease
 }
+
+function gwtclean() {
+  local main_wt
+  main_wt=$(git worktree list --porcelain 2>/dev/null | head -1 | awk '{print $2}')
+  if [[ -z "$main_wt" ]]; then
+    echo "Not inside a git repository." >&2
+    return 1
+  fi
+
+  local worktrees=()
+  while IFS= read -r wt; do
+    [[ "$wt" != "$main_wt" ]] && worktrees+=("$wt")
+  done < <(git worktree list --porcelain | grep '^worktree ' | awk '{print $2}')
+
+  if [[ ${#worktrees[@]} -eq 0 ]]; then
+    echo "No extra worktrees to remove."
+    return 0
+  fi
+
+  echo "The following worktrees will be removed:"
+  printf "  %s\n" "${worktrees[@]}"
+  echo ""
+  read -q "confirm?Remove all listed worktrees? [y/N] " || { echo ""; return 0; }
+  echo ""
+
+  for wt in "${worktrees[@]}"; do
+    echo "Removing $wt..."
+    git worktree remove --force "$wt"
+  done
+
+  git worktree prune
+  echo "Done. Remaining worktrees:"
+  git worktree list
+}
