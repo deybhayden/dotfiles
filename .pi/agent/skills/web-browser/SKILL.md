@@ -1,97 +1,94 @@
 ---
 name: web-browser
-description: "Allows to interact with web pages by performing actions such as clicking buttons, filling out forms, and navigating links. It works by remote controlling Google Chrome using the Chrome DevTools Protocol (CDP). When an agent needs to browse the web, it can use this skill to do so."
-license: Stolen from Mario
+description: "Browser automation using the agent-browser CLI (Chromium via Playwright). Use it to navigate pages, capture snapshots, and interact with elements."
+license: Apache-2.0
 ---
 
-# Web Browser Skill
+# Web Browser Skill (agent-browser)
 
-Minimal CDP tools for collaborative site exploration.
+Use **agent-browser** for web automation. It runs a headless Chromium instance by default and exposes a CLI optimized for AI agents.
 
-> **Note**: This skill is configured for **WSL2 on Ubuntu** using **Windows Chrome**.
+> Full command reference: `agent-browser --help`
 
-## Start Chrome
-
-```bash
-./scripts/start.js              # Fresh profile
-./scripts/start.js --profile    # Copy your Windows Chrome profile (cookies, logins)
-```
-
-Start Windows Chrome on `:9222` with remote debugging. The script automatically detects your Windows username and Chrome installation.
-
-## Navigate
+## Installation
 
 ```bash
-./scripts/nav.js https://example.com
-./scripts/nav.js https://example.com --new
+npm install -g agent-browser
+agent-browser install              # Download Chromium
+# Linux only:
+agent-browser install --with-deps  # Install system deps
 ```
 
-Navigate current tab or open new tab.
+## Core Workflow (recommended)
 
-## Evaluate JavaScript
+1. **Open a page**
+   ```bash
+   agent-browser open https://example.com
+   ```
+2. **Get a snapshot (refs)**
+   ```bash
+   agent-browser snapshot -i        # Interactive elements only
+   # or JSON for machine parsing
+   agent-browser snapshot -i --json
+   ```
+3. **Interact using refs**
+   ```bash
+   agent-browser click @e2
+   agent-browser fill @e3 "test@example.com"
+   agent-browser get text @e1
+   ```
+4. **Re-snapshot after changes**
+   ```bash
+   agent-browser snapshot -i --json
+   ```
+
+Refs (`@e1`, `@e2`, …) are deterministic and ideal for AI workflows.
+
+## Common Commands
 
 ```bash
-./scripts/eval.js 'document.title'
-./scripts/eval.js 'document.querySelectorAll("a").length'
-./scripts/eval.js 'JSON.stringify(Array.from(document.querySelectorAll("a")).map(a => ({ text: a.textContent.trim(), href: a.href })).filter(link => !link.href.startsWith("https://")))'
+agent-browser open <url>            # Navigate (alias: goto)
+agent-browser snapshot              # Accessibility tree with refs
+agent-browser click <sel|@ref>
+agent-browser fill <sel|@ref> <text>
+agent-browser type <sel|@ref> <text>
+agent-browser press <key>           # e.g. Enter, Tab, Control+a
+agent-browser get text <sel|@ref>
+agent-browser screenshot [path]     # Use --full for full page
+agent-browser close                 # Close browser
 ```
 
-Execute JavaScript in active tab (async context). Be careful with string escaping, best to use single quotes.
-
-## Screenshot
+### Semantic Finders (optional)
 
 ```bash
-./scripts/screenshot.js
+agent-browser find role button click --name "Submit"
+agent-browser find label "Email" fill "test@test.com"
 ```
 
-Screenshot current viewport, returns temp file path
+## Helpful Options
 
-## Pick Elements
+- **Headed mode (visible browser):**
+  ```bash
+  agent-browser open https://example.com --headed
+  ```
+- **Persistent profile (cookies/logins):**
+  ```bash
+  agent-browser --profile ~/.myapp-profile open https://example.com
+  ```
+- **Isolated sessions:**
+  ```bash
+  agent-browser --session agent1 open https://example.com
+  ```
+- **Agent-friendly JSON output:**
+  ```bash
+  agent-browser snapshot -i --json
+  agent-browser get text @e1 --json
+  ```
+- **Local files (file://):**
+  ```bash
+  agent-browser --allow-file-access open file:///path/to/page.html
+  ```
 
-```bash
-./scripts/pick.js "Click the submit button"
-```
+## When to Use
 
-Interactive element picker. Click to select, Cmd/Ctrl+Click for multi-select, Enter to finish.
-
-## Dismiss Cookie Dialogs
-
-```bash
-./scripts/dismiss-cookies.js          # Accept cookies
-./scripts/dismiss-cookies.js --reject # Reject cookies (where possible)
-```
-
-Automatically dismisses EU cookie consent dialogs.
-
-Run after navigating to a page:
-
-```bash
-./scripts/nav.js https://example.com && ./scripts/dismiss-cookies.js
-```
-
-## Background Logging (Console + Errors + Network)
-
-Automatically started by `start.js` and writes JSONL logs to:
-
-```
-~/.cache/agent-web/logs/YYYY-MM-DD/<targetId>.jsonl
-```
-
-Manually start:
-
-```bash
-./scripts/watch.js
-```
-
-Tail latest log:
-
-```bash
-./scripts/logs-tail.js           # dump current log and exit
-./scripts/logs-tail.js --follow  # keep following
-```
-
-Summarize network responses:
-
-```bash
-./scripts/net-summary.js
-```
+Use this skill whenever the agent needs to browse the web, inspect pages, click buttons, fill forms, or capture screenshots.

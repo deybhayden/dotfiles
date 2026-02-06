@@ -73,7 +73,8 @@ if ! command -v zsh >/dev/null 2>&1; then
   nvm install lts/jod
   nvm alias default lts/jod
   nvm use default
-  npm install -g @mariozechner/pi-coding-agent
+  npm install -g @mariozechner/pi-coding-agent agent-browser
+  agent-browser install
 
   # Otpgen
   echo "Installing otpgen"
