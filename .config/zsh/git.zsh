@@ -23,6 +23,11 @@ alias ga="git add"
 alias gb="git branch"
 alias gba="git branch --all"
 alias gbd="git branch -D"
+
+function gbdl() {
+  git branch -D $(git branch --list "$1")
+}
+compdef _git gbdl=git-branch
 alias gc="git commit"
 alias gca="git commit -a"
 alias gcan!="git commit -a --amend --no-edit"
