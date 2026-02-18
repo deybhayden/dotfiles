@@ -10,6 +10,7 @@
  * - /super-review branch main
  * - /super-review uncommitted
  * - /super-review commit abc123
+ * - /super-review folder src docs
  * - /super-review custom "check for security issues"
  */
 
@@ -34,6 +35,24 @@ import {
 } from "@mariozechner/pi-tui";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import {
+  hasUpstreamTrackingBranch,
+  isSelectListActionInput,
+  parseReviewPathsInput,
+  tokenizeSpaceSeparated,
+} from "./_shared/review-utils.js";
+import {
+  BASE_BRANCH_PROMPT_FALLBACK as SHARED_BASE_BRANCH_PROMPT_FALLBACK,
+  BASE_BRANCH_PROMPT_WITH_MERGE_BASE as SHARED_BASE_BRANCH_PROMPT_WITH_MERGE_BASE,
+  COMMIT_PROMPT as SHARED_COMMIT_PROMPT,
+  COMMIT_PROMPT_WITH_TITLE as SHARED_COMMIT_PROMPT_WITH_TITLE,
+  FOLDER_REVIEW_MODE_OVERRIDE as SHARED_FOLDER_REVIEW_MODE_OVERRIDE,
+  FOLDER_REVIEW_PROMPT as SHARED_FOLDER_REVIEW_PROMPT,
+  PULL_REQUEST_PROMPT as SHARED_PULL_REQUEST_PROMPT,
+  PULL_REQUEST_PROMPT_FALLBACK as SHARED_PULL_REQUEST_PROMPT_FALLBACK,
+  REVIEW_RUBRIC as SHARED_REVIEW_RUBRIC,
+  UNCOMMITTED_PROMPT as SHARED_UNCOMMITTED_PROMPT,
+} from "./_shared/review-prompts.js";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
@@ -132,98 +151,31 @@ type ReviewTarget =
   | { type: "baseBranch"; branch: string }
   | { type: "commit"; sha: string; title?: string }
   | { type: "custom"; instructions: string }
-  | {
-      type: "pullRequest";
-      prNumber: number;
-      baseBranch: string;
-      title: string;
-    };
+  | { type: "pullRequest"; prNumber: number; baseBranch: string; title: string }
+  | { type: "folder"; paths: string[] };
 
 // Prompts (adapted from Codex)
-const UNCOMMITTED_PROMPT =
-  "Review the current code changes (staged, unstaged, and untracked files) and provide prioritized findings.";
+const UNCOMMITTED_PROMPT = SHARED_UNCOMMITTED_PROMPT;
 
 const BASE_BRANCH_PROMPT_WITH_MERGE_BASE =
-  "Review the code changes against the base branch '{baseBranch}'. The merge base commit for this comparison is {mergeBaseSha}. Run `git diff {mergeBaseSha}` to inspect the changes relative to {baseBranch}. Provide prioritized, actionable findings.";
+  SHARED_BASE_BRANCH_PROMPT_WITH_MERGE_BASE;
 
-const BASE_BRANCH_PROMPT_FALLBACK =
-  'Review the code changes against the base branch \'{branch}\'. Start by finding the merge diff between the current branch and {branch}\'s upstream e.g. (`git merge-base HEAD "$(git rev-parse --abbrev-ref "{branch}@{upstream}")"`), then run `git diff` against that SHA to see what changes we would merge into the {branch} branch. Provide prioritized, actionable findings.';
+const BASE_BRANCH_PROMPT_FALLBACK = SHARED_BASE_BRANCH_PROMPT_FALLBACK;
 
-const COMMIT_PROMPT_WITH_TITLE =
-  'Review the code changes introduced by commit {sha} ("{title}"). Provide prioritized, actionable findings.';
+const COMMIT_PROMPT_WITH_TITLE = SHARED_COMMIT_PROMPT_WITH_TITLE;
 
-const COMMIT_PROMPT =
-  "Review the code changes introduced by commit {sha}. Provide prioritized, actionable findings.";
+const COMMIT_PROMPT = SHARED_COMMIT_PROMPT;
 
-const PULL_REQUEST_PROMPT =
-  "Review pull request #{prNumber} (\"{title}\") against the base branch '{baseBranch}'. The merge base commit for this comparison is {mergeBaseSha}. Run `git diff {mergeBaseSha}` to inspect the changes that would be merged. Provide prioritized, actionable findings.";
+const PULL_REQUEST_PROMPT = SHARED_PULL_REQUEST_PROMPT;
 
-const PULL_REQUEST_PROMPT_FALLBACK =
-  "Review pull request #{prNumber} (\"{title}\") against the base branch '{baseBranch}'. Start by finding the merge base between the current branch and {baseBranch} (e.g., `git merge-base HEAD {baseBranch}`), then run `git diff` against that SHA to see the changes that would be merged. Provide prioritized, actionable findings.";
+const PULL_REQUEST_PROMPT_FALLBACK = SHARED_PULL_REQUEST_PROMPT_FALLBACK;
+
+const FOLDER_REVIEW_PROMPT = SHARED_FOLDER_REVIEW_PROMPT;
+
+const FOLDER_REVIEW_MODE_OVERRIDE = SHARED_FOLDER_REVIEW_MODE_OVERRIDE;
 
 // The detailed review rubric (adapted from Codex's review_prompt.md)
-const REVIEW_RUBRIC = `# Review Guidelines
-
-You are acting as a code reviewer for a proposed code change.
-
-## Determining what to flag
-
-Flag issues that:
-1. Meaningfully impact the accuracy, performance, security, or maintainability of the code.
-2. Are discrete and actionable (not general issues or multiple combined issues).
-3. Don't demand rigor inconsistent with the rest of the codebase.
-4. Were introduced in the changes being reviewed (not pre-existing bugs).
-5. The author would likely fix if aware of them.
-6. Don't rely on unstated assumptions about the codebase or author's intent.
-7. Have provable impact on other parts of the code (not speculation).
-8. Are clearly not intentional changes by the author.
-9. Be particularly careful with untrusted user input and follow the specific guidelines to review.
-
-## Untrusted User Input
-
-1. Be careful with open redirects, they must always be checked to only go to trusted domains (?next_page=...)
-2. Always flag SQL that is not parametrized
-3. In systems with user supplied URL input, http fetches always need to be protected against access to local resources (intercept DNS resolver!)
-4. Escape, don't sanitize if you have the option (eg: HTML escaping)
-
-## Comment guidelines
-
-1. Be clear about why the issue is a problem.
-2. Communicate severity appropriately - don't exaggerate.
-3. Be brief - at most 1 paragraph.
-4. Keep code snippets under 3 lines, wrapped in inline code or code blocks.
-5. Explicitly state scenarios/environments where the issue arises.
-6. Use a matter-of-fact tone - helpful AI assistant, not accusatory.
-7. Write for quick comprehension without close reading.
-8. Avoid excessive flattery or unhelpful phrases like "Great job...".
-
-## Review priorities
-
-1. Call out newly added dependencies explicitly and explain why they're needed.
-2. Prefer simple, direct solutions over wrappers or abstractions without clear value.
-3. Favor fail-fast behavior; avoid logging-and-continue patterns that hide errors.
-4. Prefer predictable production behavior; crashing is better than silent degradation.
-5. Treat back pressure handling as critical to system stability.
-6. Apply system-level thinking; flag changes that increase operational risk or on-call wakeups.
-7. Ensure that errors are always checked against codes or stable identifiers, never error messages.
-
-## Priority levels
-
-Tag each finding with a priority level in the title:
-- [P0] - Drop everything to fix. Blocking release/operations. Only for universal issues.
-- [P1] - Urgent. Should be addressed in the next cycle.
-- [P2] - Normal. To be fixed eventually.
-- [P3] - Low. Nice to have.
-
-## Output format
-
-Provide your findings in a clear, structured format:
-1. List each finding with its priority tag, file location, and explanation.
-2. Keep line references as short as possible (avoid ranges over 5-10 lines).
-3. At the end, provide an overall verdict: "correct" (no blocking issues) or "needs attention" (has blocking issues).
-4. Ignore trivial style issues unless they obscure meaning or violate documented standards.
-
-Output all findings the author would fix if they knew about them. If there are no qualifying findings, explicitly state the code looks good. Don't stop at the first finding - list every qualifying issue.`;
+const REVIEW_RUBRIC = SHARED_REVIEW_RUBRIC;
 
 const SUPER_REVIEW_SUMMARY_SYSTEM_PROMPT = `You are summarizing multiple code review reports for the same change.
 
@@ -575,6 +527,9 @@ async function buildReviewPrompt(
         .replace(/{title}/g, target.title)
         .replace(/{baseBranch}/g, target.baseBranch);
     }
+
+    case "folder":
+      return FOLDER_REVIEW_PROMPT.replace("{paths}", target.paths.join(", "));
   }
 }
 
@@ -605,27 +560,39 @@ function getUserFacingHint(target: ReviewTarget): string {
           : target.title;
       return `PR #${target.prNumber}: ${shortTitle}`;
     }
+
+    case "folder": {
+      const joined = target.paths.join(", ");
+      return joined.length > 40
+        ? `folders: ${joined.slice(0, 37)}...`
+        : `folders: ${joined}`;
+    }
   }
 }
 
-// Review preset options for the selector
+// Review preset options for the selector (keep this order stable)
 const REVIEW_PRESETS = [
   {
-    value: "pullRequest",
-    label: "Review a pull request",
-    description: "(GitHub PR)",
+    value: "uncommitted",
+    label: "Review uncommitted changes",
+    description: "",
   },
   {
     value: "baseBranch",
     label: "Review against a base branch",
     description: "(local)",
   },
-  {
-    value: "uncommitted",
-    label: "Review uncommitted changes",
-    description: "",
-  },
   { value: "commit", label: "Review a commit", description: "" },
+  {
+    value: "pullRequest",
+    label: "Review a pull request",
+    description: "(GitHub PR)",
+  },
+  {
+    value: "folder",
+    label: "Review a folder (or more)",
+    description: "(snapshot, not diff)",
+  },
   { value: "custom", label: "Custom review instructions", description: "" },
 ] as const;
 
@@ -1299,20 +1266,16 @@ async function showReviewSelector(
   ctx: ExtensionContext,
   pi: ExtensionAPI,
 ): Promise<ReviewTarget | null> {
-  // Determine smart default and reorder items
+  // Determine smart default (but keep the list order stable)
   const smartDefault = await getSmartDefault(pi);
-  const items: SelectItem[] = REVIEW_PRESETS.slice() // copy to avoid mutating original
-    .sort((a, b) => {
-      // Put smart default first
-      if (a.value === smartDefault) return -1;
-      if (b.value === smartDefault) return 1;
-      return 0;
-    })
-    .map((preset) => ({
-      value: preset.value,
-      label: preset.label,
-      description: preset.description,
-    }));
+  const items: SelectItem[] = REVIEW_PRESETS.map((preset) => ({
+    value: preset.value,
+    label: preset.label,
+    description: preset.description,
+  }));
+  const smartDefaultIndex = items.findIndex(
+    (item) => item.value === smartDefault,
+  );
 
   while (true) {
     const result = await ctx.ui.custom<string | null>(
@@ -1332,6 +1295,11 @@ async function showReviewSelector(
           scrollInfo: (text) => theme.fg("dim", text),
           noMatch: (text) => theme.fg("warning", text),
         });
+
+        // Preselect the smart default without reordering the list
+        if (smartDefaultIndex >= 0) {
+          selectList.setSelectedIndex(smartDefaultIndex);
+        }
 
         selectList.onSelect = (item) => done(item.value);
         selectList.onCancel = () => done(null);
@@ -1384,6 +1352,12 @@ async function showReviewSelector(
         break;
       }
 
+      case "folder": {
+        const target = await showFolderInput(ctx);
+        if (target) return target;
+        break;
+      }
+
       case "pullRequest": {
         const target = await showPrInput(ctx, pi);
         if (target) return target;
@@ -1404,25 +1378,48 @@ async function showBranchSelector(
   pi: ExtensionAPI,
 ): Promise<ReviewTarget | null> {
   const branches = await getLocalBranches(pi);
+  const currentBranch = await getCurrentBranch(pi);
   const defaultBranch = await getDefaultBranch(pi);
+  const currentBranchHasUpstream = currentBranch
+    ? await hasUpstreamTrackingBranch(pi, currentBranch)
+    : false;
 
-  if (branches.length === 0) {
-    ctx.ui.notify("No branches found", "error");
+  // Excluding the current branch is usually correct, but if it tracks an upstream branch
+  // (e.g. main -> origin/main), selecting it remains meaningful for local-vs-upstream review.
+  const candidateBranches =
+    currentBranch && !currentBranchHasUpstream
+      ? branches.filter((b) => b !== currentBranch)
+      : branches;
+
+  if (candidateBranches.length === 0) {
+    ctx.ui.notify(
+      currentBranch
+        ? `No other branches found (current branch: ${currentBranch})`
+        : "No branches found",
+      "error",
+    );
     return null;
   }
 
   // Sort branches with default branch first
-  const sortedBranches = branches.sort((a, b) => {
+  const sortedBranches = [...candidateBranches].sort((a, b) => {
     if (a === defaultBranch) return -1;
     if (b === defaultBranch) return 1;
     return a.localeCompare(b);
   });
 
-  const items: SelectItem[] = sortedBranches.map((branch) => ({
-    value: branch,
-    label: branch,
-    description: branch === defaultBranch ? "(default)" : "",
-  }));
+  const items: SelectItem[] = sortedBranches.map((branch) => {
+    const tags: string[] = [];
+    if (branch === defaultBranch) tags.push("default");
+    if (currentBranchHasUpstream && branch === currentBranch) {
+      tags.push("current (uses upstream)");
+    }
+    return {
+      value: branch,
+      label: branch,
+      description: tags.length > 0 ? `(${tags.join(", ")})` : "",
+    };
+  });
 
   const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
     const container = new Container();
@@ -1441,13 +1438,30 @@ async function showBranchSelector(
       noMatch: (text) => theme.fg("warning", text),
     });
 
+    let filter = "";
+    const filterLine = new Text(theme.fg("dim", "Filter: (type to filter)"));
+
+    const applyFilter = () => {
+      selectList.setFilter(filter);
+      filterLine.setText(
+        theme.fg(
+          "dim",
+          `Filter: ${filter.length > 0 ? filter : "(type to filter)"}`,
+        ),
+      );
+    };
+
     selectList.onSelect = (item) => done(item.value);
     selectList.onCancel = () => done(null);
 
+    container.addChild(filterLine);
     container.addChild(selectList);
     container.addChild(
       new Text(
-        theme.fg("dim", "↑↓ navigate • enter to select • esc to cancel"),
+        theme.fg(
+          "dim",
+          "Type to filter • ↑↓ navigate • enter to select • esc to cancel",
+        ),
       ),
     );
     container.addChild(
@@ -1462,7 +1476,20 @@ async function showBranchSelector(
         container.invalidate();
       },
       handleInput(data: string) {
-        selectList.handleInput(data);
+        if (isSelectListActionInput(data)) {
+          selectList.handleInput(data);
+        } else if (data.length === 1 && data >= " " && data !== "\x7f") {
+          filter += data;
+          applyFilter();
+        } else if (data === "\x7f" || data === "\b") {
+          filter = filter.slice(0, -1);
+          applyFilter();
+        } else if (data === "\x15") {
+          filter = "";
+          applyFilter();
+        } else {
+          selectList.handleInput(data);
+        }
         tui.requestRender();
       },
     };
@@ -1486,11 +1513,16 @@ async function showCommitSelector(
     return null;
   }
 
-  const items: SelectItem[] = commits.map((commit) => ({
-    value: commit.sha,
-    label: `${commit.sha.slice(0, 7)} ${commit.title}`,
-    description: "",
-  }));
+  const commitByFilterKey = new Map<string, { sha: string; title: string }>();
+  const items: SelectItem[] = commits.map((commit) => {
+    const filterKey = `${commit.title} ${commit.sha}`;
+    commitByFilterKey.set(filterKey, commit);
+    return {
+      value: filterKey,
+      label: `${commit.sha.slice(0, 7)} ${commit.title}`,
+      description: "",
+    };
+  });
 
   const result = await ctx.ui.custom<{ sha: string; title: string } | null>(
     (tui, theme, _kb, done) => {
@@ -1510,8 +1542,23 @@ async function showCommitSelector(
         noMatch: (text) => theme.fg("warning", text),
       });
 
+      let filter = "";
+      const filterLine = new Text(
+        theme.fg("dim", "Filter: (type title prefix)"),
+      );
+
+      const applyFilter = () => {
+        selectList.setFilter(filter);
+        filterLine.setText(
+          theme.fg(
+            "dim",
+            `Filter: ${filter.length > 0 ? filter : "(type title prefix)"}`,
+          ),
+        );
+      };
+
       selectList.onSelect = (item) => {
-        const commit = commits.find((c) => c.sha === item.value);
+        const commit = commitByFilterKey.get(item.value);
         if (commit) {
           done(commit);
         } else {
@@ -1520,10 +1567,14 @@ async function showCommitSelector(
       };
       selectList.onCancel = () => done(null);
 
+      container.addChild(filterLine);
       container.addChild(selectList);
       container.addChild(
         new Text(
-          theme.fg("dim", "↑↓ navigate • enter to select • esc to cancel"),
+          theme.fg(
+            "dim",
+            "Type title prefix to filter • ↑↓ navigate • enter to select • esc to cancel",
+          ),
         ),
       );
       container.addChild(
@@ -1538,7 +1589,20 @@ async function showCommitSelector(
           container.invalidate();
         },
         handleInput(data: string) {
-          selectList.handleInput(data);
+          if (isSelectListActionInput(data)) {
+            selectList.handleInput(data);
+          } else if (data.length === 1 && data >= " " && data !== "\x7f") {
+            filter += data;
+            applyFilter();
+          } else if (data === "\x7f" || data === "\b") {
+            filter = filter.slice(0, -1);
+            applyFilter();
+          } else if (data === "\x15") {
+            filter = "";
+            applyFilter();
+          } else {
+            selectList.handleInput(data);
+          }
           tui.requestRender();
         },
       };
@@ -1562,6 +1626,24 @@ async function showCustomInput(
 
   if (!result?.trim()) return null;
   return { type: "custom", instructions: result.trim() };
+}
+
+/**
+ * Show folder input
+ */
+async function showFolderInput(
+  ctx: ExtensionContext,
+): Promise<ReviewTarget | null> {
+  const result = await ctx.ui.editor(
+    "Enter folders/files to review (space-separated; quote/escape paths with spaces; or one per line):",
+    ".",
+  );
+
+  if (!result?.trim()) return null;
+  const paths = parseReviewPathsInput(result);
+  if (paths.length === 0) return null;
+
+  return { type: "folder", paths };
 }
 
 /**
@@ -1646,8 +1728,12 @@ function parseArgs(
 ): ReviewTarget | { type: "pr"; ref: string } | null {
   if (!args?.trim()) return null;
 
-  const parts = args.trim().split(/\s+/);
+  const trimmedArgs = args.trim();
+  const parts = tokenizeSpaceSeparated(trimmedArgs);
   const subcommand = parts[0]?.toLowerCase();
+  if (!subcommand) return null;
+
+  const remainder = trimmedArgs.slice(subcommand.length).trim();
 
   switch (subcommand) {
     case "uncommitted":
@@ -1667,9 +1753,15 @@ function parseArgs(
     }
 
     case "custom": {
-      const instructions = parts.slice(1).join(" ");
+      const instructions = remainder;
       if (!instructions) return null;
       return { type: "custom", instructions };
+    }
+
+    case "folder": {
+      const paths = parseReviewPathsInput(remainder);
+      if (paths.length === 0) return null;
+      return { type: "folder", paths };
     }
 
     case "pr": {
@@ -1918,6 +2010,10 @@ export default function superReviewExtension(pi: ExtensionAPI) {
 
         if (projectGuidelines) {
           fullPrompt += `\n\nThis project has additional instructions for code reviews:\n\n${projectGuidelines}`;
+        }
+
+        if (target.type === "folder") {
+          fullPrompt += `\n\n---\n\n${FOLDER_REVIEW_MODE_OVERRIDE}`;
         }
 
         const thinkingLevel = pi.getThinkingLevel();

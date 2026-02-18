@@ -8,14 +8,15 @@
     },
     {
       "provider": "anthropic",
-      "id": "opus-4-6",
+      "id": "claude-opus-4-6",
       "label": "Opus",
       "thinkingLevel": "xhigh"
     }
   ],
   "summaryModel": {
     "provider": "anthropic",
-    "id": "sonnet-4-6",
+    "id": "claude-sonnet-4-6",
+    "label": "Sonnet",
     "thinkingLevel": "high"
   },
   "maxParallel": 2,
