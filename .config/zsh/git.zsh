@@ -95,3 +95,7 @@ function gwtclean() {
   echo "Done. Remaining worktrees:"
   git worktree list
 }
+
+# github cli
+alias gha="gh auth status"
+alias ghs="gh auth switch"
