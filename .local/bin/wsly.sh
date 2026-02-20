@@ -98,6 +98,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   mv check-ecs-exec.sh ~/.local/bin
 
   # Github
+  gh extension install https://github.com/nektos/gh-act
   echo "GitHub CLI login"
   gh auth login
 else
