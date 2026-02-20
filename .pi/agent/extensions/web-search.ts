@@ -6,237 +6,134 @@ import {
   truncateHead,
   type TruncationResult,
 } from "@mariozechner/pi-coding-agent";
-import { StringEnum } from "@mariozechner/pi-ai";
+import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const SearchTypes = ["web", "news"] as const;
-type SearchType = (typeof SearchTypes)[number];
+// ─── Constants ─────────────────────────────────────────────────────
 
+const BRAVE_API_BASE = "https://api.search.brave.com/res/v1/web/search";
 const DEFAULT_MAX_RESULTS = 5;
-const MAX_RESULTS_LIMIT = 15;
-const DEFAULT_MARKET = "en-US";
+const MAX_RESULTS_LIMIT = 20;
 const REQUEST_TIMEOUT_MS = 15_000;
+const FETCH_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_LENGTH = 15_000;
 
-const WebSearchParams = Type.Object({
-  query: Type.String({
-    description:
-      "Search query. Include specifics (e.g., year, framework, country) for better results.",
-  }),
-  type: Type.Optional(StringEnum(SearchTypes) as any),
-  max_results: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      maximum: MAX_RESULTS_LIMIT,
-      description: `Maximum number of results to return (default ${DEFAULT_MAX_RESULTS}, max ${MAX_RESULTS_LIMIT}).`,
-    }),
-  ),
-  market: Type.Optional(
-    Type.String({
-      description:
-        "Bing market/locale (default en-US), e.g. en-US, en-GB, de-DE.",
-    }),
-  ),
-}) as any;
+// ─── Brave Search types ────────────────────────────────────────────
 
-interface WebSearchToolInput {
-  query: string;
-  type?: SearchType;
-  max_results?: number;
-  market?: string;
-}
-
-interface SearchResult {
+interface BraveSearchResult {
   title: string;
   url: string;
   snippet: string;
-  publishedAt?: string;
-  source?: string;
 }
 
-interface WebSearchDetails {
+interface BraveSearchDetails {
   query: string;
-  type: SearchType;
-  market: string;
-  endpoint: string;
-  maxResults: number;
-  resultCount: number;
-  results: SearchResult[];
+  provider: string;
+  count: number;
+  freshness?: string;
+  country?: string;
+  results: BraveSearchResult[];
+  urls: string[];
   truncation?: TruncationResult;
   fullOutputPath?: string;
   error?: string;
 }
 
-function clampResultCount(value?: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_MAX_RESULTS;
-  return Math.max(1, Math.min(MAX_RESULTS_LIMIT, Math.floor(value!)));
+// ─── Fetch URL types ───────────────────────────────────────────────
+
+interface FetchResult {
+  title: string;
+  content: string;
+  byline: string;
+  length: number;
+  url: string;
 }
 
-function normalizeSearchType(value?: string): SearchType {
-  return value === "news" ? "news" : "web";
+interface FetchUrlDetails {
+  url: string;
+  title?: string;
+  extractedLength?: number;
+  originalLength?: number;
+  selector?: string;
+  error?: string;
 }
 
-function normalizeMarket(value?: string): string {
-  const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_MARKET;
+// ─── Brave Search ──────────────────────────────────────────────────
+
+function getBraveApiKey(): string | undefined {
+  return process.env.BRAVE_API_KEY;
 }
 
-function decodeXmlEntities(text: string): string {
-  return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
-    if (entity.startsWith("#x") || entity.startsWith("#X")) {
-      const codePoint = Number.parseInt(entity.slice(2), 16);
-      return Number.isFinite(codePoint)
-        ? String.fromCodePoint(codePoint)
-        : match;
-    }
-
-    if (entity.startsWith("#")) {
-      const codePoint = Number.parseInt(entity.slice(1), 10);
-      return Number.isFinite(codePoint)
-        ? String.fromCodePoint(codePoint)
-        : match;
-    }
-
-    switch (entity) {
-      case "amp":
-        return "&";
-      case "lt":
-        return "<";
-      case "gt":
-        return ">";
-      case "quot":
-        return '"';
-      case "apos":
-        return "'";
-      default:
-        return match;
-    }
-  });
-}
-
-function stripTags(value: string): string {
-  return value.replace(/<[^>]+>/g, " ");
-}
-
-function cleanText(value: string | undefined): string {
-  if (!value) return "";
-  const cdataMatch = value.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/i);
-  const unwrapped = cdataMatch ? cdataMatch[1] : value;
-  return stripTags(decodeXmlEntities(unwrapped)).replace(/\s+/g, " ").trim();
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function extractTag(xmlBlock: string, tagName: string): string | undefined {
-  const pattern = new RegExp(
-    `<${escapeRegExp(tagName)}>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`,
-    "i",
-  );
-  const match = xmlBlock.match(pattern);
-  return match?.[1];
-}
-
-function decodeBingUParam(value: string): string | undefined {
-  const decoded = decodeURIComponent(value);
-  if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
-    return decoded;
-  }
-
-  if (!decoded.startsWith("a1")) {
-    return undefined;
-  }
-
-  const base64Payload = decoded.slice(2).replace(/-/g, "+").replace(/_/g, "/");
-  const padding = "=".repeat((4 - (base64Payload.length % 4)) % 4);
-
-  try {
-    const candidate = Buffer.from(base64Payload + padding, "base64").toString(
-      "utf8",
-    );
-    return candidate.startsWith("http://") || candidate.startsWith("https://")
-      ? candidate
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function unwrapBingRedirectUrl(link: string): string {
-  try {
-    const parsed = new URL(link);
-    if (!parsed.hostname.endsWith("bing.com")) {
-      return link;
-    }
-
-    const encodedUrl = parsed.searchParams.get("url");
-    if (encodedUrl) {
-      return decodeURIComponent(encodedUrl);
-    }
-
-    const encodedU = parsed.searchParams.get("u");
-    if (encodedU) {
-      return decodeBingUParam(encodedU) ?? link;
-    }
-
-    return link;
-  } catch {
-    return link;
-  }
-}
-
-function buildBingRssUrl(query: string, type: SearchType, market: string): URL {
-  const baseUrl =
-    type === "news"
-      ? "https://www.bing.com/news/search"
-      : "https://www.bing.com/search";
-
-  const url = new URL(baseUrl);
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "rss");
-  if (market) {
-    url.searchParams.set("mkt", market);
-  }
-  return url;
-}
-
-async function fetchWithTimeout(
-  url: URL,
+async function braveSearch(
+  query: string,
+  opts: {
+    count?: number;
+    freshness?: string;
+    country?: string;
+  },
   signal?: AbortSignal,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-): Promise<string> {
+): Promise<BraveSearchResult[]> {
+  const apiKey = getBraveApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "BRAVE_API_KEY environment variable is not set. " +
+        "Get a free API key at https://brave.com/search/api/",
+    );
+  }
+
+  const count = Math.max(
+    1,
+    Math.min(MAX_RESULTS_LIMIT, opts.count ?? DEFAULT_MAX_RESULTS),
+  );
+  const params = new URLSearchParams({
+    q: query,
+    count: String(count),
+    text_decorations: "false",
+  });
+  if (opts.freshness) params.set("freshness", opts.freshness);
+  if (opts.country) params.set("country", opts.country);
+
   const controller = new AbortController();
-
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const abortHandler = () => controller.abort();
   signal?.addEventListener("abort", abortHandler, { once: true });
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(`${BRAVE_API_BASE}?${params}`, {
       headers: {
-        accept: "application/rss+xml, application/xml, text/xml;q=0.9",
-        "user-agent": "pi-web-search-extension/1.0",
+        Accept: "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey,
       },
       signal: controller.signal,
     });
 
     if (!response.ok) {
+      const body = await response.text().catch(() => "");
       throw new Error(
-        `Request failed (${response.status} ${response.statusText})`,
+        `Brave Search API error: HTTP ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`,
       );
     }
 
-    return await response.text();
+    const data = (await response.json()) as any;
+    const results: BraveSearchResult[] = [];
+
+    for (const item of data.web?.results ?? []) {
+      results.push({
+        title: item.title || "",
+        url: item.url || "",
+        snippet: item.description || "",
+      });
+    }
+
+    return results;
   } catch (error) {
     if (controller.signal.aborted && !signal?.aborted) {
       throw new Error(
-        `Request timed out after ${Math.round(timeoutMs / 1000)}s`,
+        `Request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`,
       );
     }
     throw error;
@@ -246,139 +143,221 @@ async function fetchWithTimeout(
   }
 }
 
-function parseBingRss(xml: string, maxResults: number): SearchResult[] {
-  const results: SearchResult[] = [];
-  const seenUrls = new Set<string>();
+// ─── Fetch & Extract ───────────────────────────────────────────────
 
-  const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
-  let match: RegExpExecArray | null;
+async function fetchAndExtract(
+  url: string,
+  opts: { selector?: string; maxLength?: number; includeLinks?: boolean },
+): Promise<FetchResult> {
+  const { Readability } = await import("@mozilla/readability");
+  const { JSDOM } = await import("jsdom");
+  const TurndownService = (await import("turndown")).default;
 
-  while ((match = itemRegex.exec(xml)) && results.length < maxResults) {
-    const item = match[1];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    const title = cleanText(extractTag(item, "title"));
-    const rawUrl = cleanText(extractTag(item, "link"));
-    const snippet = cleanText(extractTag(item, "description"));
-    const publishedAt = cleanText(extractTag(item, "pubDate"));
-    const source = cleanText(extractTag(item, "News:Source"));
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      redirect: "follow",
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
-    if (!title || !rawUrl) {
-      continue;
-    }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
 
-    const url = unwrapBingRedirectUrl(rawUrl);
-    if (!url || seenUrls.has(url)) {
-      continue;
-    }
-    seenUrls.add(url);
+  const contentType = response.headers.get("content-type") || "";
 
-    results.push({
-      title,
+  // Non-HTML: return raw text
+  if (!contentType.includes("html")) {
+    const raw = await response.text();
+    const maxLen = opts.maxLength ?? DEFAULT_MAX_LENGTH;
+    return {
+      title: url,
+      content: raw.slice(0, maxLen),
+      byline: "",
+      length: raw.length,
       url,
-      snippet,
-      publishedAt: publishedAt || undefined,
-      source: source || undefined,
+    };
+  }
+
+  const html = await response.text();
+  const dom = new JSDOM(html, { url });
+
+  if (opts.selector) {
+    const selected = dom.window.document.querySelector(opts.selector);
+    if (selected) {
+      dom.window.document.body.innerHTML = selected.outerHTML;
+    }
+  }
+
+  const article = new Readability(dom.window.document).parse();
+  if (!article || !article.content) {
+    throw new Error("Readability could not extract content from this page");
+  }
+
+  const td = new TurndownService({
+    headingStyle: "atx",
+    codeBlockStyle: "fenced",
+    bulletListMarker: "-",
+  });
+
+  td.addRule("removeImages", { filter: "img", replacement: () => "" });
+
+  if (!opts.includeLinks) {
+    td.addRule("stripLinks", {
+      filter: "a",
+      replacement: (_content: string, node: any) => node.textContent || "",
     });
   }
 
-  return results;
+  let markdown = td.turndown(article.content);
+
+  markdown = markdown
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^#+\s*$/gm, "")
+    .replace(/^(Share|Tweet|Pin|Email|Print)(\s+(this|on|via))?.{0,20}$/gim, "")
+    .replace(/^.*(cookie|consent|privacy policy|accept all).*$/gim, "")
+    .trim();
+
+  const maxLen = opts.maxLength ?? DEFAULT_MAX_LENGTH;
+  if (markdown.length > maxLen) {
+    markdown = markdown.slice(0, maxLen) + "\n\n[... truncated]";
+  }
+
+  return {
+    title: article.title || "",
+    content: markdown,
+    byline: article.byline || "",
+    length: article.length || markdown.length,
+    url,
+  };
 }
 
-function formatResultsForAgent(
+// ─── Formatting helpers ────────────────────────────────────────────
+
+function formatSearchResults(
   query: string,
-  type: SearchType,
-  market: string,
-  results: SearchResult[],
+  results: BraveSearchResult[],
 ): string {
   if (!results.length) {
-    return `No ${type} results found for "${query}".`;
+    return `No results found for "${query}".`;
   }
 
   const lines: string[] = [
-    `${type === "news" ? "News" : "Web"} search results for "${query}" (market: ${market})`,
+    `Search: "${query}" via Brave (${results.length} results)`,
     "",
   ];
 
   for (const [index, result] of results.entries()) {
-    lines.push(`${index + 1}. ${result.title}`);
-    lines.push(`   URL: ${result.url}`);
-    if (result.source) {
-      lines.push(`   Source: ${result.source}`);
-    }
-    if (result.publishedAt) {
-      lines.push(`   Published: ${result.publishedAt}`);
-    }
+    lines.push(`${index + 1}. **${result.title}**`);
+    lines.push(`   ${result.url}`);
     if (result.snippet) {
-      lines.push(`   Snippet: ${result.snippet}`);
+      lines.push(`   ${result.snippet}`);
     }
     lines.push("");
   }
 
-  lines.push(
-    "Tip: open primary sources for details and cross-check claims across multiple outlets.",
-  );
+  lines.push("Use fetch_url to read the full content of specific results.");
   return lines.join("\n").trim();
 }
 
+// ─── Extension ─────────────────────────────────────────────────────
+
 export default function webSearchExtension(pi: ExtensionAPI) {
+  // ── Tool 1: web_search (Brave) ─────────────────────────────────
+
   pi.registerTool({
     name: "web_search",
     label: "Web Search",
     description:
-      `Search the live web or news via Bing RSS for up-to-date research (e.g., 2026 best practices, current events). ` +
-      `Use type="news" for current events. Returns title, URL, snippet, and publication metadata when available. ` +
+      `Search the web using Brave Search API. Returns a list of results (title, url, snippet). ` +
+      `Requires BRAVE_API_KEY env var. Use fetch_url to read specific pages from the results. ` +
+      `Supports freshness filters: "pd" (day), "pw" (week), "pm" (month), "py" (year), or date ranges like "2024-01-01to2024-06-30". ` +
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} (whichever is hit first).`,
-    parameters: WebSearchParams,
+    parameters: Type.Object({
+      query: Type.String({
+        description:
+          "Search query. Include specifics (e.g., year, framework, country) for better results.",
+      }),
+      count: Type.Optional(
+        Type.Integer({
+          minimum: 1,
+          maximum: MAX_RESULTS_LIMIT,
+          description: `Number of results to return (default ${DEFAULT_MAX_RESULTS}, max ${MAX_RESULTS_LIMIT}).`,
+        }),
+      ),
+      freshness: Type.Optional(
+        Type.String({
+          description:
+            'Freshness filter: "pd" (day), "pw" (week), "pm" (month), "py" (year), or "YYYY-MM-DDtoYYYY-MM-DD".',
+        }),
+      ),
+      country: Type.Optional(
+        Type.String({
+          description:
+            "Two-letter country code for localized results (e.g., US, GB, DE).",
+        }),
+      ),
+    }) as any,
 
     async execute(_toolCallId, rawParams, signal, onUpdate) {
-      const params = rawParams as WebSearchToolInput;
-      const query = params.query?.trim();
-      const type = normalizeSearchType(params.type);
-      const maxResults = clampResultCount(params.max_results);
-      const market = normalizeMarket(params.market);
-
-      const baseDetails: Omit<WebSearchDetails, "endpoint" | "resultCount"> = {
-        query: query ?? "",
-        type,
-        market,
-        maxResults,
-        results: [],
+      const params = rawParams as {
+        query: string;
+        count?: number;
+        freshness?: string;
+        country?: string;
       };
 
+      const query = params.query?.trim();
       if (!query) {
         return {
           content: [{ type: "text", text: "Error: query is required." }],
           details: {
-            ...baseDetails,
-            endpoint: "",
-            resultCount: 0,
             error: "query is required",
-          },
+          } satisfies Partial<BraveSearchDetails>,
           isError: true,
         };
       }
 
-      const endpoint = buildBingRssUrl(query, type, market);
       onUpdate?.({
-        content: [
-          { type: "text", text: `Searching ${type} for "${query}"...` },
-        ],
+        content: [{ type: "text", text: `Searching Brave for "${query}"...` }],
         details: {},
       });
 
       try {
-        const xml = await fetchWithTimeout(endpoint, signal);
-        const results = parseBingRss(xml, maxResults);
-
-        const details: WebSearchDetails = {
-          ...baseDetails,
+        const results = await braveSearch(
           query,
-          endpoint: endpoint.toString(),
-          resultCount: results.length,
+          {
+            count: params.count,
+            freshness: params.freshness,
+            country: params.country,
+          },
+          signal,
+        );
+
+        const details: BraveSearchDetails = {
+          query,
+          provider: "brave",
+          count: results.length,
+          freshness: params.freshness,
+          country: params.country,
           results,
+          urls: results.map((r) => r.url),
         };
 
-        const fullText = formatResultsForAgent(query, type, market, results);
+        const fullText = formatSearchResults(query, results);
         const truncation = truncateHead(fullText, {
           maxLines: DEFAULT_MAX_LINES,
           maxBytes: DEFAULT_MAX_BYTES,
@@ -398,25 +377,194 @@ export default function webSearchExtension(pi: ExtensionAPI) {
           outputText += ` Full output saved to: ${tempFile}]`;
         }
 
-        return {
-          content: [{ type: "text", text: outputText }],
-          details,
-        };
+        return { content: [{ type: "text", text: outputText }], details };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-
         return {
           content: [{ type: "text", text: `Web search failed: ${message}` }],
           details: {
-            ...baseDetails,
             query,
-            endpoint: endpoint.toString(),
-            resultCount: 0,
+            provider: "brave",
+            count: 0,
+            results: [],
+            urls: [],
             error: message,
-          },
+          } satisfies BraveSearchDetails,
           isError: true,
         };
       }
+    },
+
+    renderCall(args: any, theme: any) {
+      let text = theme.fg("toolTitle", theme.bold("web_search "));
+      text += theme.fg("accent", `"${args.query || "..."}"`);
+      if (args.freshness)
+        text += theme.fg("muted", ` freshness=${args.freshness}`);
+      if (args.country) text += theme.fg("muted", ` country=${args.country}`);
+      if (args.count) text += theme.fg("dim", ` (${args.count} results)`);
+      return new Text(text, 0, 0);
+    },
+
+    renderResult(result: any, { expanded }: any, theme: any) {
+      const details = result.details as BraveSearchDetails | undefined;
+      if (details?.error) {
+        return new Text(theme.fg("error", `✗ ${details.error}`), 0, 0);
+      }
+
+      let text = theme.fg("success", "✓ ");
+      text += theme.fg("muted", `${details?.count ?? "?"} results via Brave`);
+
+      if (expanded) {
+        const content = result.content[0];
+        if (content?.type === "text") {
+          text += "\n\n" + theme.fg("toolOutput", content.text);
+        }
+      } else if (details?.urls?.length) {
+        const preview = details.urls.slice(0, 3).join("\n  ");
+        text += "\n  " + theme.fg("dim", preview);
+        if (details.urls.length > 3) {
+          text += theme.fg("muted", `\n  ... +${details.urls.length - 3} more`);
+        }
+      }
+
+      return new Text(text, 0, 0);
+    },
+  });
+
+  // ── Tool 2: fetch_url ──────────────────────────────────────────
+
+  pi.registerTool({
+    name: "fetch_url",
+    label: "Fetch URL",
+    description:
+      "Fetch a URL and return clean, readable content as Markdown. " +
+      "Uses Mozilla Readability to strip navigation, ads, and boilerplate. " +
+      "Use `selector` to extract a specific section (CSS selector). " +
+      "Use `maxLength` to limit output size (default: 15000 chars). " +
+      "Set `includeLinks: true` to preserve hyperlinks (stripped by default to save tokens).",
+    parameters: Type.Object({
+      url: Type.String({ description: "URL to fetch" }),
+      selector: Type.Optional(
+        Type.String({
+          description:
+            "CSS selector to narrow extraction (e.g. 'main', '.docs-content', '#api-reference')",
+        }),
+      ),
+      maxLength: Type.Optional(
+        Type.Number({
+          description: "Max characters to return. Default: 15000",
+        }),
+      ),
+      includeLinks: Type.Optional(
+        Type.Boolean({
+          description:
+            "Keep hyperlinks in output. Default: false (saves tokens)",
+        }),
+      ),
+    }) as any,
+
+    async execute(_toolCallId, rawParams, _signal) {
+      const params = rawParams as {
+        url: string;
+        selector?: string;
+        maxLength?: number;
+        includeLinks?: boolean;
+      };
+
+      try {
+        const result = await fetchAndExtract(params.url, {
+          selector: params.selector,
+          maxLength: params.maxLength,
+          includeLinks: params.includeLinks,
+        });
+
+        const header = [
+          result.title && `# ${result.title}`,
+          result.byline && `*${result.byline}*`,
+          `Source: ${result.url}`,
+          `Extracted: ${result.content.length} chars from ${result.length} original`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const text = `${header}\n\n---\n\n${result.content}`;
+
+        const truncation = truncateHead(text, {
+          maxLines: DEFAULT_MAX_LINES,
+          maxBytes: DEFAULT_MAX_BYTES,
+        });
+
+        let output = truncation.content;
+        if (truncation.truncated) {
+          const tempDir = mkdtempSync(join(tmpdir(), "pi-fetch-url-"));
+          const tempFile = join(tempDir, "content.md");
+          writeFileSync(tempFile, text, "utf8");
+
+          output += `\n\n[Truncated: ${truncation.outputLines}/${truncation.totalLines} lines, `;
+          output += `${formatSize(truncation.outputBytes)}/${formatSize(truncation.totalBytes)}. `;
+          output += `Full output saved to: ${tempFile}]`;
+        }
+
+        const details: FetchUrlDetails = {
+          url: result.url,
+          title: result.title,
+          extractedLength: result.content.length,
+          originalLength: result.length,
+          selector: params.selector,
+        };
+        return {
+          content: [{ type: "text", text: output }],
+          details,
+        };
+      } catch (err: any) {
+        const details: FetchUrlDetails = {
+          url: params.url,
+          error: err.message,
+        };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to fetch ${params.url}: ${err.message}`,
+            },
+          ],
+          details,
+          isError: true,
+        };
+      }
+    },
+
+    renderCall(args: any, theme: any) {
+      let text = theme.fg("toolTitle", theme.bold("fetch_url "));
+      text += theme.fg("accent", args.url || "...");
+      if (args.selector) text += theme.fg("muted", ` → ${args.selector}`);
+      return new Text(text, 0, 0);
+    },
+
+    renderResult(result: any, { expanded }: any, theme: any) {
+      const details = result.details as FetchUrlDetails | undefined;
+      if (details?.error) {
+        return new Text(theme.fg("error", `✗ ${details.error}`), 0, 0);
+      }
+
+      let text = theme.fg("success", "✓ ");
+      if (details?.title) text += theme.fg("toolTitle", details.title) + " ";
+      text += theme.fg("muted", `(${details?.extractedLength ?? "?"} chars`);
+      if (details?.selector)
+        text += theme.fg("muted", `, selector: ${details.selector}`);
+      text += theme.fg("muted", ")");
+
+      if (expanded) {
+        const content = result.content[0];
+        if (content?.type === "text") {
+          text += "\n\n" + theme.fg("toolOutput", content.text.slice(0, 2000));
+          if (content.text.length > 2000) {
+            text += theme.fg("muted", "\n... (truncated in preview)");
+          }
+        }
+      }
+
+      return new Text(text, 0, 0);
     },
   });
 }
