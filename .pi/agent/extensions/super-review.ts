@@ -70,6 +70,7 @@ const THINKING_LEVELS = new Set<ThinkingLevel>([
 // State to track fresh session review (where we branched from).
 // Module-level state means only one super review can be active at a time.
 let superReviewOriginId: string | undefined = undefined;
+let endSuperReviewInProgress = false;
 
 type SuperReviewSessionState = {
   active: boolean;
@@ -2198,122 +2199,109 @@ export default function superReviewExtension(pi: ExtensionAPI) {
     },
   });
 
-  // Register the /end-super-review command
-  pi.registerCommand("end-super-review", {
-    description: "Complete super-review and return to original position",
-    handler: async (_args, ctx) => {
-      if (!ctx.hasUI) {
-        ctx.ui.notify("End-super-review requires interactive mode", "error");
+  const SUPER_REVIEW_FIX_FINDINGS_PROMPT = `Use the latest super-review summary in this session and implement the review findings now.
+
+Instructions:
+1. Treat the summary's "## Code Review Findings" and "## Next Steps" as a checklist.
+2. Fix in priority order: P0, P1, then P2 (include P3 if quick and safe).
+3. If a finding is invalid/already fixed/not possible right now, briefly explain why and continue.
+4. Run relevant tests/checks for touched code where practical.
+5. End with: fixed items, deferred/skipped items (with reasons), and verification results.`;
+
+  type EndSuperReviewAction =
+    | "returnOnly"
+    | "returnAndFix"
+    | "returnAndSummarize";
+
+  function hasSuperReviewMessagesInBranch(ctx: ExtensionContext): boolean {
+    return ctx.sessionManager.getBranch().some((entry) => {
+      if (entry.type !== "message") return false;
+      const message = entry.message as { customType?: string };
+      return message.customType === "super-review";
+    });
+  }
+
+  function getActiveSuperReviewOrigin(
+    ctx: ExtensionContext,
+  ): string | undefined {
+    if (superReviewOriginId) {
+      return superReviewOriginId;
+    }
+
+    const state = getSuperReviewState(ctx);
+    if (state?.active && state.originId) {
+      superReviewOriginId = state.originId;
+      return superReviewOriginId;
+    }
+
+    if (state?.active) {
+      setSuperReviewWidget(ctx, false);
+      pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
+      ctx.ui.notify(
+        "Super-review state was missing origin info; cleared status.",
+        "warning",
+      );
+    }
+
+    return undefined;
+  }
+
+  function clearSuperReviewState(ctx: ExtensionContext) {
+    setSuperReviewWidget(ctx, false);
+    superReviewOriginId = undefined;
+    pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
+  }
+
+  async function runEndSuperReview(
+    ctx: ExtensionCommandContext,
+  ): Promise<void> {
+    if (!ctx.hasUI) {
+      ctx.ui.notify("End-super-review requires interactive mode", "error");
+      return;
+    }
+
+    if (endSuperReviewInProgress) {
+      ctx.ui.notify("/end-super-review is already running", "info");
+      return;
+    }
+
+    const stateBeforeResolve = getSuperReviewState(ctx);
+    const originId = getActiveSuperReviewOrigin(ctx);
+    if (!originId) {
+      if (stateBeforeResolve?.active && !stateBeforeResolve.originId) {
         return;
       }
 
-      if (!superReviewOriginId) {
-        const state = getSuperReviewState(ctx);
-        if (state?.active && state.originId) {
-          superReviewOriginId = state.originId;
-        } else if (state?.active) {
-          setSuperReviewWidget(ctx, false);
-          pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
-          ctx.ui.notify(
-            "Super-review state was missing origin info; cleared status.",
-            "warning",
-          );
-          return;
-        } else {
-          const hasSuperReviewMessages = ctx.sessionManager
-            .getBranch()
-            .some((entry) => {
-              if (entry.type !== "message") return false;
-              const message = entry.message as { customType?: string };
-              return message.customType === "super-review";
-            });
+      const message = hasSuperReviewMessagesInBranch(ctx)
+        ? "Super-review results are in the current session. /end-super-review is only for empty-branch runs."
+        : "Not in a super-review branch (run /super-review and choose Empty branch to use /end-super-review).";
+      ctx.ui.notify(message, "info");
+      return;
+    }
 
-          const message = hasSuperReviewMessages
-            ? "Super-review results are in the current session. /end-super-review is only for empty-branch runs."
-            : "Not in a super-review branch (run /super-review and choose Empty branch to use /end-super-review).";
-          ctx.ui.notify(message, "info");
-          return;
-        }
-      }
-
-      const summaryChoice = await ctx.ui.select("Summarize super-review?", [
-        "Summarize",
-        "No summary",
+    endSuperReviewInProgress = true;
+    try {
+      const choice = await ctx.ui.select("Finish super-review:", [
+        "Return and summarize",
+        "Return only",
+        "Return, summarize, and queue fixes",
       ]);
 
-      if (summaryChoice === undefined) {
+      if (choice === undefined) {
         ctx.ui.notify("Cancelled. Use /end-super-review to try again.", "info");
         return;
       }
 
-      const wantsSummary = summaryChoice === "Summarize";
-      const originId = superReviewOriginId;
+      const action: EndSuperReviewAction =
+        choice === "Return only"
+          ? "returnOnly"
+          : choice === "Return, summarize, and queue fixes"
+            ? "returnAndFix"
+            : "returnAndSummarize";
 
-      if (wantsSummary) {
-        const result = await ctx.ui.custom<{
-          cancelled: boolean;
-          error?: string;
-        } | null>((tui, theme, _kb, done) => {
-          const loader = new BorderedLoader(
-            tui,
-            theme,
-            "Summarizing super-review branch...",
-          );
-          loader.onAbort = () => done(null);
-
-          ctx
-            .navigateTree(originId!, {
-              summarize: true,
-              customInstructions: SUPER_REVIEW_BRANCH_SUMMARY_PROMPT,
-              replaceInstructions: true,
-            })
-            .then(done)
-            .catch((err) =>
-              done({
-                cancelled: false,
-                error: err instanceof Error ? err.message : String(err),
-              }),
-            );
-
-          return loader;
-        });
-
-        if (result === null) {
-          ctx.ui.notify(
-            "Summarization cancelled. Use /end-super-review to try again.",
-            "info",
-          );
-          return;
-        }
-
-        if (result.error) {
-          ctx.ui.notify(`Summarization failed: ${result.error}`, "error");
-          return;
-        }
-
-        setSuperReviewWidget(ctx, false);
-        superReviewOriginId = undefined;
-        pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
-
-        if (result.cancelled) {
-          ctx.ui.notify("Navigation cancelled", "info");
-          return;
-        }
-
-        if (!ctx.ui.getEditorText().trim()) {
-          ctx.ui.setEditorText("Act on the super review");
-        }
-
-        ctx.ui.notify(
-          "Super-review complete! Returned to original position.",
-          "info",
-        );
-      } else {
+      if (action === "returnOnly") {
         try {
-          const result = await ctx.navigateTree(originId!, {
-            summarize: false,
-          });
-
+          const result = await ctx.navigateTree(originId, { summarize: false });
           if (result.cancelled) {
             ctx.ui.notify(
               "Navigation cancelled. Use /end-super-review to try again.",
@@ -2321,21 +2309,99 @@ export default function superReviewExtension(pi: ExtensionAPI) {
             );
             return;
           }
-
-          setSuperReviewWidget(ctx, false);
-          superReviewOriginId = undefined;
-          pi.appendEntry(SUPER_REVIEW_STATE_TYPE, { active: false });
-          ctx.ui.notify(
-            "Super-review complete! Returned to original position.",
-            "info",
-          );
         } catch (error) {
           ctx.ui.notify(
             `Failed to return: ${error instanceof Error ? error.message : String(error)}`,
             "error",
           );
+          return;
         }
+
+        clearSuperReviewState(ctx);
+        ctx.ui.notify(
+          "Super-review complete! Returned to original position.",
+          "info",
+        );
+        return;
       }
+
+      const summaryResult = await ctx.ui.custom<{
+        cancelled: boolean;
+        error?: string;
+      } | null>((tui, theme, _kb, done) => {
+        const loader = new BorderedLoader(
+          tui,
+          theme,
+          "Summarizing super-review branch and returning...",
+        );
+        loader.onAbort = () => done(null);
+
+        ctx
+          .navigateTree(originId, {
+            summarize: true,
+            customInstructions: SUPER_REVIEW_BRANCH_SUMMARY_PROMPT,
+            replaceInstructions: true,
+          })
+          .then(done)
+          .catch((err) =>
+            done({
+              cancelled: false,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+
+        return loader;
+      });
+
+      if (summaryResult === null) {
+        ctx.ui.notify(
+          "Summarization cancelled. Use /end-super-review to try again.",
+          "info",
+        );
+        return;
+      }
+
+      if (summaryResult.error) {
+        ctx.ui.notify(`Summarization failed: ${summaryResult.error}`, "error");
+        return;
+      }
+
+      if (summaryResult.cancelled) {
+        ctx.ui.notify(
+          "Navigation cancelled. Use /end-super-review to try again.",
+          "info",
+        );
+        return;
+      }
+
+      clearSuperReviewState(ctx);
+
+      if (action === "returnAndFix") {
+        pi.sendUserMessage(SUPER_REVIEW_FIX_FINDINGS_PROMPT, {
+          deliverAs: "followUp",
+        });
+        ctx.ui.notify(
+          "Super-review complete! Returned, summarized, and queued fixes.",
+          "info",
+        );
+        return;
+      }
+
+      if (!ctx.ui.getEditorText().trim()) {
+        ctx.ui.setEditorText("Act on the super review");
+      }
+
+      ctx.ui.notify("Super-review complete! Returned and summarized.", "info");
+    } finally {
+      endSuperReviewInProgress = false;
+    }
+  }
+
+  // Register the /end-super-review command
+  pi.registerCommand("end-super-review", {
+    description: "Complete super-review and return to original position",
+    handler: async (_args, ctx) => {
+      await runEndSuperReview(ctx);
     },
   });
 }
