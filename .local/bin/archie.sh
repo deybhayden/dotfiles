@@ -32,7 +32,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   ntpdate    → ntp
   sudo pacman -S --needed --noconfirm \
     curl direnv docker docker-buildx docker-compose bind-tools eza fd ffmpeg \
-    himalaya htop imagemagick jq keyd less nmap ntp ripgrep screen stow \
+    htop imagemagick jq keyd less nmap ntp ripgrep screen stow \
     unzip vim wget wl-clipboard xdg-utils zip
 
   # docker
@@ -74,6 +74,7 @@ if ! command -v zsh >/dev/null 2>&1; then
     agent-browser \
     amazon-ecr-credential-helper-bin \
     aws-session-manager-plugin \
+    himalaya-all-features-git \
     mongodb-tools-bin \
     mongosh-bin \
     mongodb-atlas-cli-bin \
@@ -119,6 +120,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   echo "Installing uv tools"
   uv tool install ruff
   uv tool install pre-commit
+  uv tool install gcalcli
 
   # Node
   echo "Installing node tools"
