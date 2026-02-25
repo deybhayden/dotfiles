@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# archie.sh - Arch Linux dotfiles bootstrap (equivalent of wsly.sh for Ubuntu/WSL)
+# archie.sh - Arch Linux dotfiles bootstrap
 # Must be run as a normal user (not root). sudo is called where needed.
 
 if [ "$(id -u)" -eq 0 ]; then
@@ -20,11 +20,6 @@ if ! command -v zsh >/dev/null 2>&1; then
   sudo pacman -S --needed --noconfirm zsh zsh-autosuggestions zsh-syntax-highlighting
   chsh -s /usr/bin/zsh
 
-  # Symlink zsh plugins to match Ubuntu paths (so .zshrc works on both distros)
-  echo "Symlinking zsh plugins to Ubuntu-compatible paths..."
-  sudo ln -sfn /usr/share/zsh/plugins/zsh-autosuggestions /usr/share/zsh-autosuggestions
-  sudo ln -sfn /usr/share/zsh/plugins/zsh-syntax-highlighting /usr/share/zsh-syntax-highlighting
-
   echo "Installing packages via pacman"
 
   # Build deps (Ubuntu: build-essential ca-certificates git gnupg make)
@@ -37,8 +32,13 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   ntpdate    → ntp
   #   wslu       → SKIPPED (WSL-only)
   sudo pacman -S --needed --noconfirm \
-    curl direnv bind-tools eza fd ffmpeg imagemagick jq nmap ntp \
+    curl direnv bind-tools eza fd ffmpeg imagemagick jq keyd less nmap ntp \
     ripgrep stow unzip vim wget wl-clipboard xdg-utils zip
+
+  # keyd
+  sudo systemctl enable keyd --now
+  sudo cp etc/keyd/default.conf /etc/keyd/default.conf
+  sudo keyd reload
 
   # Database client tools
   # Package mapping:
@@ -69,10 +69,11 @@ if ! command -v zsh >/dev/null 2>&1; then
   yay -S --needed --noconfirm \
     agent-browser \
     amazon-ecr-credential-helper-bin \
+    aws-session-manager-plugin \
     mongodb-tools-bin \
     mongosh-bin \
     mongodb-atlas-cli-bin \
-    aws-session-manager-plugin
+    ttf-delugia-code
 
   echo "Stowing files"
   mkdir -p ~/.local ~/.config ~/.pi/agent
