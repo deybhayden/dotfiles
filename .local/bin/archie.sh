@@ -31,8 +31,13 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   fd-find    → fd
   #   ntpdate    → ntp
   sudo pacman -S --needed --noconfirm \
-    curl direnv bind-tools eza fd ffmpeg imagemagick jq keyd less nmap ntp \
-    ripgrep screen stow unzip vim wget wl-clipboard xdg-utils zip
+    curl direnv docker docker-buildx docker-compose bind-tools eza fd ffmpeg \
+    htop imagemagick jq keyd less nmap ntp ripgrep screen stow \
+    unzip vim wget wl-clipboard xdg-utils zip
+
+  # docker
+  sudo systemctl enable docker --now
+  sudo usermod -aG docker ben
 
   # keyd
   sudo systemctl enable keyd --now
