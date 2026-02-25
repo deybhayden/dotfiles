@@ -30,7 +30,6 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   dnsutils   → bind-tools
   #   fd-find    → fd
   #   ntpdate    → ntp
-  #   wslu       → SKIPPED (WSL-only)
   sudo pacman -S --needed --noconfirm \
     curl direnv bind-tools eza fd ffmpeg imagemagick jq keyd less nmap ntp \
     ripgrep stow unzip vim wget wl-clipboard xdg-utils zip
