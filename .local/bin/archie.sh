@@ -32,7 +32,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   ntpdate    → ntp
   sudo pacman -S --needed --noconfirm \
     curl direnv bind-tools eza fd ffmpeg imagemagick jq keyd less nmap ntp \
-    ripgrep stow unzip vim wget wl-clipboard xdg-utils zip
+    ripgrep screen stow unzip vim wget wl-clipboard xdg-utils zip
 
   # keyd
   sudo systemctl enable keyd --now
