@@ -52,4 +52,8 @@ fi
 setopt prompt_subst
 
 # config for prompt
-prompt='%B%F{blue}%1/%f%b %F{green}$(git_prompt_branch)%f$ '
+if [[ -n "$SSH_TTY" ]]; then
+  prompt='%B%F{yellow}%n@%m%f%b %B%F{blue}%1/%f%b %F{green}$(git_prompt_branch)%f$ '
+else
+  prompt='%B%F{blue}%1/%f%b %F{green}$(git_prompt_branch)%f$ '
+fi
