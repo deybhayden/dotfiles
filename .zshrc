@@ -26,7 +26,16 @@ if ! [[ -o login ]]; then
   # wsl is not a login shell
   source $HOME/.zprofile
 fi
-source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# source zsh-syntax-highlighting (path differs by distro)
+if [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+  source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+elif [[ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+  source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+
+# init completion system early so compdef works in sourced files
+autoload -U compinit && compinit
+autoload -U +X bashcompinit && bashcompinit
 
 # source other zsh files
 for zfile in "${ZSH:-$HOME/.config/zsh}"/*.zsh; do
