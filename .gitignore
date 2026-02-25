@@ -2,4 +2,3 @@
 .local/bin/*
 !.local/bin/wsly.sh
 !.local/bin/archie.sh
-etc
