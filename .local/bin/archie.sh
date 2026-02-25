@@ -32,7 +32,7 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   ntpdate    → ntp
   sudo pacman -S --needed --noconfirm \
     curl direnv docker docker-buildx docker-compose bind-tools eza fd ffmpeg \
-    htop imagemagick jq keyd less nmap ntp ripgrep screen stow \
+    himalaya htop imagemagick jq keyd less nmap ntp ripgrep screen stow \
     unzip vim wget wl-clipboard xdg-utils zip
 
   # docker
