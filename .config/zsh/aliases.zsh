@@ -24,7 +24,6 @@ alias lt="eza --long --tree --level=3 --color=always | less -R"
 alias dex="docker exec -it"
 
 # python
-alias python="python3"
 alias venv!="source .venv/bin/activate"
 
 # node

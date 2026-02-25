@@ -13,8 +13,13 @@ if ! command -v zsh >/dev/null 2>&1; then
   chsh -s /usr/bin/zsh
 
   echo "Installing packages via apt"
-  # build deps
-  sudo apt install build-essential ca-certificates git gnupg make
+  # build deps (incl. Python/asdf compile deps)
+  sudo apt install \
+    build-essential ca-certificates git gnupg make pkg-config \
+    llvm xz-utils \
+    libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
+    libffi-dev liblzma-dev libncurses-dev tk-dev \
+    libgdbm-dev libgdbm-compat-dev libnss3-dev uuid-dev libdb-dev
 
   # Tools
   sudo apt install amazon-ecr-credential-helper curl direnv dnsutils eza fd-find ffmpeg imagemagick jq nmap ntpdate ripgrep stow unzip vim wget wl-clipboard wslu xdg-utils zip
@@ -68,6 +73,9 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf plugin add uv
   asdf install uv 0.10.2
   asdf set -u uv 0.10.2
+  asdf plugin add python
+  asdf install python 3.12.8
+  asdf set -u python 3.12.8
 
   # Python
   echo "Installing uv tools"
