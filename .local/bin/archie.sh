@@ -32,8 +32,9 @@ if ! command -v zsh >/dev/null 2>&1; then
   #   ntpdate    → ntp
   sudo pacman -S --needed --noconfirm \
     curl direnv docker docker-buildx docker-compose bind-tools eza fd ffmpeg \
-    htop imagemagick jq keyd less nmap ntp ripgrep screen stow \
-    unzip vim wget wl-clipboard xdg-utils zip
+    htop imagemagick inettools jq keyd less nmap ntp openbsd-netcat \
+    ripgrep screen stow unzip vim wget wireguard-tools wl-clipboard \
+    xdg-utils zip
 
   # docker
   sudo systemctl enable docker --now
