@@ -24,6 +24,18 @@ cp .zprofile ~
 .local/bin/wsly.sh
 ```
 
+### WSL2 Config
+
+In order to have network traffic mirrored on WSL2 (you can access localhost seamlessly across both systems), you'll want the following
+in your `$HOME/.wslconfig`
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+If you changed that, restart wsl with `wsl --shutdown` and open a new wsl terminal and you should be good.
+
 ## Arch Linux
 
 ### Install
