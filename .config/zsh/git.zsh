@@ -98,4 +98,5 @@ function gwtclean() {
 
 # github cli
 alias gha="gh auth status"
+alias ghl="gh auth login"
 alias ghs="gh auth switch"
