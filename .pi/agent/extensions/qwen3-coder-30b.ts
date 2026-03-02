@@ -17,14 +17,14 @@ export default function (pi: ExtensionAPI) {
     models: [
       {
         // This MUST match the exact model name/tag in your local runner
-        // e.g. "qwen3-vl30b" or whatever tag you used to pull/load it
-        id: "qwen3-vl:30b",
-        name: "Qwen3 VL 30B",
+        // e.g. "qwen3-coder:30b" or whatever tag you used to pull/load it
+        id: "qwen3-coder:30b",
+        name: "Qwen3 Coder 30B",
 
-        // Since it's a Vision-Language (VL) model, it can accept images
-        input: ["text", "image"],
+        // Coder model is text-only
+        input: ["text"],
 
-        // qwen3-vl:30b in Ollama is the thinking variant
+        // qwen3-coder:30b in Ollama is the thinking variant
         reasoning: true,
 
         // Local models are free!
@@ -35,7 +35,7 @@ export default function (pi: ExtensionAPI) {
           cacheWrite: 0,
         },
 
-        // Qwen3-VL 30B supports 256K native context
+        // Qwen3-Coder 30B supports 262K native context
         contextWindow: 262144,
         maxTokens: 32768,
 
