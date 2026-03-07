@@ -42,4 +42,5 @@ alias pi-codex="pi --provider openai-codex --model gpt-5.3-codex --thinking xhig
 alias pi-opus="pi --provider anthropic --model claude-opus-4-6 --thinking high"
 alias pi-sonnet="pi --provider anthropic --model claude-sonnet-4-6 --thinking medium"
 alias pi-gemini="pi --provider google-gemini-cli --model gemini-3-pro-preview --thinking high"
+alias pi-security-review="pi '/security-review'"
 alias pi-super-review="pi '/super-review'"

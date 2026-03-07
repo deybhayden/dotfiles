@@ -44,6 +44,7 @@ import {
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
+import { runPreflightScan, type ScanScope } from "./security-scan.js";
 import {
   BASE_BRANCH_PROMPT_FALLBACK as SHARED_BASE_BRANCH_PROMPT_FALLBACK,
   BASE_BRANCH_PROMPT_WITH_MERGE_BASE as SHARED_BASE_BRANCH_PROMPT_WITH_MERGE_BASE,
@@ -516,6 +517,36 @@ async function getDefaultBranch(pi: ExtensionAPI): Promise<string> {
   return "main";
 }
 
+async function detectCurrentPr(
+  pi: ExtensionAPI,
+): Promise<{ number: number; url: string } | null> {
+  const { stdout, code } = await pi.exec("gh", [
+    "pr",
+    "view",
+    "--json",
+    "number,url",
+  ]);
+  if (code !== 0) return null;
+  try {
+    const data = JSON.parse(stdout) as { number: number; url: string };
+    if (typeof data.number !== "number" || typeof data.url !== "string")
+      return null;
+    return { number: data.number, url: data.url };
+  } catch {
+    return null;
+  }
+}
+
+async function getCurrentSha(pi: ExtensionAPI): Promise<string> {
+  const { stdout, code } = await pi.exec("git", [
+    "rev-parse",
+    "--short",
+    "HEAD",
+  ]);
+  if (code === 0 && stdout.trim()) return stdout.trim();
+  return "unknown";
+}
+
 // ─── Prompt builder ──────────────────────────────────────────────────────────
 
 async function buildReviewPrompt(
@@ -606,6 +637,34 @@ function getUserFacingHint(target: ReviewTarget): string {
 }
 
 // ─── Review preset options ───────────────────────────────────────────────────
+
+async function postScanResultsComment(
+  pi: ExtensionAPI,
+  prNumber: number,
+  branch: string,
+  sha: string,
+  preflightReport: string,
+): Promise<boolean> {
+  const body = [
+    `## Security Scan Results`,
+    ``,
+    `**Commit:** \`${sha}\` · **Branch:** \`${branch}\``,
+    ``,
+    preflightReport,
+    ``,
+    `---`,
+    `*Posted by \`/security-review\`*`,
+  ].join("\n");
+
+  const { code } = await pi.exec("gh", [
+    "pr",
+    "comment",
+    String(prNumber),
+    "--body",
+    body,
+  ]);
+  return code === 0;
+}
 
 const REVIEW_PRESETS = [
   {
@@ -1100,6 +1159,17 @@ export default function securityReviewExtension(pi: ExtensionAPI) {
     };
   }
 
+  // ── Pre-flight scope mapper ──────────────────────────────────────────────
+
+  function reviewTargetToScanScope(target: ReviewTarget): ScanScope {
+    switch (target.type) {
+      case "folder":
+        return { type: "folder", paths: target.paths };
+      default:
+        return { type: "gitChanged" };
+    }
+  }
+
   // ── Execute review ───────────────────────────────────────────────────────
 
   async function executeSecurityReview(
@@ -1170,7 +1240,25 @@ export default function securityReviewExtension(pi: ExtensionAPI) {
     const hint = getUserFacingHint(target);
     const projectGuidelines = await loadSecurityReviewGuidelines(ctx.cwd);
 
-    let fullPrompt = `${SECURITY_REVIEW_RUBRIC}\n\n---\n\nPlease perform a **security-focused code review** with the following target:\n\n${prompt}`;
+    // ── Pre-flight static scan ──
+    ctx.ui.notify("Running pre-flight security scan…", "info");
+    const scanScope = reviewTargetToScanScope(target);
+    const preflightReport = await runPreflightScan(pi, scanScope, ctx.cwd);
+
+    // ── PR detection ──
+    const [pr, sha, branch] = await Promise.all([
+      detectCurrentPr(pi),
+      getCurrentSha(pi),
+      getCurrentBranch(pi),
+    ]);
+
+    const PREFLIGHT_SECTION = `## Pre-flight Static Scan
+
+The following findings were produced by automated static analysis (secret detection, Semgrep SAST, dependency audit) before this review. Use them as grounding context — confirm each finding against the code, dismiss false positives with a brief rationale, and escalate severity where the full code context warrants it. Do not reproduce these findings verbatim; integrate your assessment into the review output.
+
+${preflightReport}`;
+
+    let fullPrompt = `${SECURITY_REVIEW_RUBRIC}\n\n---\n\n${PREFLIGHT_SECTION}\n\n---\n\nPlease perform a **security-focused code review** with the following target:\n\n${prompt}`;
 
     if (projectGuidelines) {
       fullPrompt += `\n\nThis project has additional security review guidelines:\n\n${projectGuidelines}`;
@@ -1178,6 +1266,33 @@ export default function securityReviewExtension(pi: ExtensionAPI) {
 
     if (target.type === "folder") {
       fullPrompt += `\n\n---\n\n${FOLDER_REVIEW_MODE_OVERRIDE}`;
+    }
+
+    if (pr) {
+      ctx.ui.notify(
+        `PR #${pr.number} detected — posting scan results as comment…`,
+        "info",
+      );
+      const posted = await postScanResultsComment(
+        pi,
+        pr.number,
+        branch ?? "unknown",
+        sha,
+        preflightReport,
+      );
+      if (posted) {
+        ctx.ui.notify(`Scan results posted to PR #${pr.number}`, "info");
+      } else {
+        ctx.ui.notify(
+          `Failed to post scan results to PR #${pr.number} — continuing with review`,
+          "warning",
+        );
+      }
+    } else {
+      ctx.ui.notify(
+        "No open PR detected — scan results will not be posted as a comment",
+        "info",
+      );
     }
 
     const modeHint = useFreshSession ? " (fresh session)" : "";
