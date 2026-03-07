@@ -198,7 +198,11 @@ async function fetchAndExtract(
   if (opts.selector) {
     const selected = dom.window.document.querySelector(opts.selector);
     if (selected) {
-      dom.window.document.body.innerHTML = selected.outerHTML;
+      const body = dom.window.document.body;
+      while (body.firstChild) {
+        body.removeChild(body.firstChild);
+      }
+      body.appendChild(selected.cloneNode(true));
     }
   }
 
