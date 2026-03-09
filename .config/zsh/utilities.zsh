@@ -27,7 +27,7 @@ function pi-bb-review() {
 }
 
 function pi-bb-respond() {
-  pi --provider anthropic --model opus-4-6 --thinking xhigh "/bitbucket respond $@"
+  pi --provider github-copilot --model opus-4.6 --thinking xhigh "/bitbucket respond $@"
 }
 
 function pi-gh-review() {
@@ -35,5 +35,5 @@ function pi-gh-review() {
 }
 
 function pi-gh-respond() {
-  pi --provider anthropic --model opus-4-6 --thinking xhigh "/github respond $@"
+  pi --provider github-copilot --model opus-4.6 --thinking xhigh "/github respond $@"
 }

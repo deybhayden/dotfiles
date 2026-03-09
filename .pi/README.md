@@ -6,18 +6,18 @@ This directory contains globally loaded pi extensions and task-specific skills. 
 
 Extensions add commands, tools, and behaviors to the agent. Located in `agent/extensions/`.
 
-| File | Commands/Tools | Summary |
-| --- | --- | --- |
-| `answer.ts` | `/answer`, `Ctrl+.` | Extracts questions from the last assistant reply and opens an interactive Q&A UI to answer them. Sends a custom message with the compiled answers. |
-| `review.ts` | `/review`, `/end-review` | Interactive code review workflow for GitHub PRs, branches, commits, uncommitted changes, or custom instructions. Supports a fresh review branch and optional summarization when ending the review. |
-| `todos.ts` | `/todos`, tool: `todo` | File-based todo manager (stored in `.pi/todos` or `$PI_TODO_PATH`) with interactive TUI plus LLM tool actions. |
-| `uv.ts` | tool: `bash` (wrapped) | Redirects Python tooling to `uv` equivalents by prepending shim commands to `PATH`. Blocks `pip`/`poetry` and rewrites `python` to `uv run`. |
-| `bitbucket.ts` | `/bitbucket review`, `/bitbucket respond`, tool: `bitbucket_pr` | Bitbucket PR review/responder helper that auto-checks out PRs in a git worktree, fetches PR data/diffs, replies inline, and approves/requests changes via the Bitbucket API. |
-| `github.ts` | `/github review`, `/github respond`, tool: `github_pr` | GitHub PR review/responder helper that auto-checks out PRs in a git worktree and uses the `gh` CLI to fetch PR data/diffs, reply inline, and approve/request changes. |
-| `web-search.ts` | tools: `web_search`, `fetch_url` | Adds web search via Brave Search API and full-page content extraction via Mozilla Readability. Requires `BRAVE_API_KEY`. |
-| `session-breakdown.ts` | `/session-breakdown` | Interactive TUI showing last 7/30/90 days of session usage—GitHub-style contribution calendar colored by model, plus per-model session count and cost table. |
-| `super-review.ts` | `/super-review`, `/end-super-review` | Runs a code review in parallel across multiple models (configured in `super-review.json`), emits individual per-model reports, then synthesizes a combined summary. Supports the same review targets as `/review`. |
-| `system-theme.ts` | *(background)* | Polls Windows system appearance every 2 s via PowerShell and automatically switches pi between `dark` and `light` themes to match. |
+| File                   | Commands/Tools                                                  | Summary                                                                                                                                                                                                            |
+| ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `answer.ts`            | `/answer`, `Ctrl+.`                                             | Extracts questions from the last assistant reply and opens an interactive Q&A UI to answer them. Sends a custom message with the compiled answers.                                                                 |
+| `review.ts`            | `/review`, `/end-review`                                        | Interactive code review workflow for GitHub PRs, branches, commits, uncommitted changes, or custom instructions. Supports a fresh review branch and optional summarization when ending the review.                 |
+| `todos.ts`             | `/todos`, tool: `todo`                                          | File-based todo manager (stored in `.pi/todos` or `$PI_TODO_PATH`) with interactive TUI plus LLM tool actions.                                                                                                     |
+| `uv.ts`                | tool: `bash` (wrapped)                                          | Redirects Python tooling to `uv` equivalents by prepending shim commands to `PATH`. Blocks `pip`/`poetry` and rewrites `python` to `uv run`.                                                                       |
+| `bitbucket.ts`         | `/bitbucket review`, `/bitbucket respond`, tool: `bitbucket_pr` | Bitbucket PR review/responder helper that auto-checks out PRs in a git worktree, fetches PR data/diffs, replies inline, and approves/requests changes via the Bitbucket API.                                       |
+| `github.ts`            | `/github review`, `/github respond`, tool: `github_pr`          | GitHub PR review/responder helper that auto-checks out PRs in a git worktree and uses the `gh` CLI to fetch PR data/diffs, reply inline, and approve/request changes.                                              |
+| `web-search.ts`        | tools: `web_search`, `fetch_url`                                | Adds web search via Brave Search API and full-page content extraction via Mozilla Readability. Requires `BRAVE_API_KEY`.                                                                                           |
+| `session-breakdown.ts` | `/session-breakdown`                                            | Interactive TUI showing last 7/30/90 days of session usage—GitHub-style contribution calendar colored by model, plus per-model session count and cost table.                                                       |
+| `super-review.ts`      | `/super-review`, `/end-super-review`                            | Runs a code review in parallel across multiple models (configured in `super-review.json`), emits individual per-model reports, then synthesizes a combined summary. Supports the same review targets as `/review`. |
+| `system-theme.ts`      | _(background)_                                                  | Polls Windows system appearance every 2 s via PowerShell and automatically switches pi between `dark` and `light` themes to match.                                                                                 |
 
 ### Extension details
 
@@ -25,7 +25,7 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 
 - **Command:** `/answer` (or `Ctrl+.`)
 - **Behavior:** Extracts questions from the last assistant message, then opens a TUI to answer them. Submits the compiled Q&A as a custom message and triggers a new turn.
-- **Notes:** Requires interactive mode. Prefers Codex mini for extraction, then Anthropic Haiku, then the current model.
+- **Notes:** Requires interactive mode. Prefers Codex mini for extraction, then github-copilot Haiku, then the current model.
 
 #### review.ts
 
@@ -155,6 +155,7 @@ Example calls:
 Registers two tools: `web_search` and `fetch_url`.
 
 **`web_search`**
+
 - **Provider:** Brave Search API (`https://api.search.brave.com/res/v1/web/search`)
 - **Auth:** Requires `BRAVE_API_KEY` environment variable (free key at [brave.com/search/api](https://brave.com/search/api/))
 - **Parameters:**
@@ -165,6 +166,7 @@ Registers two tools: `web_search` and `fetch_url`.
 - **Result shape:** Numbered list of results with title, URL, and snippet. Output is truncated to 2000 lines or 50 KB (whichever is hit first); full output is saved to a temp file when truncated.
 
 **`fetch_url`**
+
 - **Purpose:** Fetches a URL and returns clean, readable Markdown. Uses Mozilla Readability to strip navigation, ads, and boilerplate, then converts to Markdown via Turndown.
 - **Parameters:**
   - `url` – URL to fetch (required)
@@ -199,19 +201,31 @@ Registers two tools: `web_search` and `fetch_url`.
   - `/super-review custom "instructions"`
 - **Config:** Reads `super-review.json` from the project's `.pi/` directory first, then from `~/.pi/agent/`. If neither exists, offers to create one via an in-TUI editor.
 - **Config schema (`super-review.json`):**
+
   ```json
   {
     "models": [
-      { "provider": "anthropic", "id": "claude-opus-4-5", "label": "Opus" },
-      { "provider": "openai", "id": "o3", "label": "O3", "thinkingLevel": "medium" }
+      {
+        "provider": "github-copilot",
+        "id": "claude-opus-4.6",
+        "label": "Opus"
+      },
+      {
+        "provider": "openai",
+        "id": "o3",
+        "label": "O3",
+        "thinkingLevel": "medium"
+      }
     ],
-    "summaryModel": { "provider": "anthropic", "id": "claude-opus-4-5" },
+    "summaryModel": { "provider": "github-copilot", "id": "claude-opus-4.6" },
     "summaryPrompt": "(optional extra instructions for the summary step)",
     "maxParallel": 2
   }
   ```
+
   - `thinkingLevel` — one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`
   - `maxParallel` — concurrency cap (defaults to all models in parallel)
+
 - **Session branching:** Like `/review`, creates a fresh session branch so the multi-model review stays isolated. `/end-super-review` returns to the origin session (with an optional summary).
 - **Requirements:** `pi` CLI must be on `PATH`; `gh` CLI required for PR checkout.
 
@@ -228,13 +242,13 @@ Registers two tools: `web_search` and `fetch_url`.
 
 Skills provide task-specific instructions that the agent loads when needed. Located in `agent/skills/`.
 
-| Skill | Description |
-| --- | --- |
-| **commit** | Guidance for making git commits. |
+| Skill               | Description                                                                    |
+| ------------------- | ------------------------------------------------------------------------------ |
+| **commit**          | Guidance for making git commits.                                               |
 | **frontend-design** | Direction for designing and implementing production-ready frontend interfaces. |
-| **uv** | Instructions for using `uv` for Python dependency and script management. |
-| **vscode** | Notes on using VS Code integration for viewing diffs and comparing files. |
-| **web-browser** | Steps for remote-controlling Chrome via CDP for web browsing tasks. |
+| **uv**              | Instructions for using `uv` for Python dependency and script management.       |
+| **vscode**          | Notes on using VS Code integration for viewing diffs and comparing files.      |
+| **web-browser**     | Steps for remote-controlling Chrome via CDP for web browsing tasks.            |
 
 Each skill lives in its own subdirectory with a `SKILL.md` that the agent reads when the task matches its description.
 

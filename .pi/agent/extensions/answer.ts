@@ -76,7 +76,7 @@ Example output:
 }`;
 
 const CODEX_MODEL_ID = "gpt-5.1-codex-mini";
-const HAIKU_MODEL_ID = "claude-haiku-4-5";
+const HAIKU_MODEL_ID = "claude-haiku-4.5";
 
 /**
  * Prefer Codex mini for extraction when available, otherwise fallback to haiku or the current model.
@@ -96,7 +96,7 @@ async function selectExtractionModel(
     }
   }
 
-  const haikuModel = modelRegistry.find("anthropic", HAIKU_MODEL_ID);
+  const haikuModel = modelRegistry.find("github-copilot", HAIKU_MODEL_ID);
   if (!haikuModel) {
     return currentModel;
   }
