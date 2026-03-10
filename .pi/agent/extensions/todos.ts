@@ -386,7 +386,7 @@ class TodoSelectorComponent extends Container implements Focusable {
     this.hintText.setText(
       this.theme.fg(
         "dim",
-        "Type to search • ↑↓ select • Enter actions • Ctrl+W work • Ctrl+R refine • Esc close",
+        "Type to search • ↑↓ select • Enter actions • Ctrl+X work • Ctrl+R refine • Esc close",
       ),
     );
   }
@@ -487,7 +487,6 @@ class TodoSelectorComponent extends Container implements Focusable {
       this.onCancelCallback();
       return;
     }
-    const hasSearchText = this.searchInput.getValue().trim().length > 0;
     if (matchesKey(keyData, Key.ctrl("r"))) {
       const selected = this.filteredTodos[this.selectedIndex];
       if (selected && this.onQuickAction)
@@ -495,7 +494,7 @@ class TodoSelectorComponent extends Container implements Focusable {
       return;
     }
 
-    if (!hasSearchText && matchesKey(keyData, Key.ctrl("w"))) {
+    if (matchesKey(keyData, Key.ctrl("x"))) {
       const selected = this.filteredTodos[this.selectedIndex];
       if (selected && this.onQuickAction) this.onQuickAction(selected, "work");
       return;
