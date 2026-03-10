@@ -70,6 +70,9 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf plugin add terraform
   asdf install terraform 1.14.5
   asdf set -u terraform 1.14.5
+  asdf plugin add terragrunt
+  asdf install terragrunt 0.99.4
+  asdf set -u terragrunt 0.99.4
   asdf plugin add uv
   asdf install uv 0.10.2
   asdf set -u uv 0.10.2
