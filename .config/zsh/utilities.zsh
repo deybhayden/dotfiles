@@ -12,6 +12,16 @@ function agent-browser() {
   ASDF_NODEJS_VERSION=22.22.0 asdf exec agent-browser "$@"
 }
 
+# copilot
+function copilot() {
+  ASDF_NODEJS_VERSION=22.22.0 asdf exec copilot "$@"
+}
+
+function copilot-update() {
+  ASDF_NODEJS_VERSION=22.22.0 asdf exec npm install -g @github/copilot@latest --loglevel=error
+  echo "\033[0;32mCopilot updated.\033[0m"
+}
+
 # pi
 function pi() {
   ASDF_NODEJS_VERSION=22.22.0 asdf exec pi "$@"
