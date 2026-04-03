@@ -10,6 +10,7 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 | ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `answer.ts`            | `/answer`, `Ctrl+.`                                             | Extracts questions from the last assistant reply and opens an interactive Q&A UI to answer them. Sends a custom message with the compiled answers.                                                                 |
 | `review.ts`            | `/review`, `/end-review`                                        | Interactive code review workflow for GitHub PRs, branches, commits, uncommitted changes, or custom instructions. Supports a fresh review branch and optional summarization when ending the review.                 |
+| `simplify.ts`          | `/simplify`, `/end-simplify`                                    | Interactive simplification workflow for uncommitted changes, local branch diffs, or snapshot paths. Can run in a fresh session branch and optionally summarize the simplification work when returning.              |
 | `todos.ts`             | `/todos`, tool: `todo`                                          | File-based todo manager (stored in `.pi/todos` or `$PI_TODO_PATH`) with interactive TUI plus LLM tool actions.                                                                                                     |
 | `uv.ts`                | tool: `bash` (wrapped)                                          | Redirects Python tooling to `uv` equivalents by prepending shim commands to `PATH`. Blocks `pip`/`poetry` and rewrites `python` to `uv run`.                                                                       |
 | `bitbucket.ts`         | `/bitbucket review`, `/bitbucket respond`, tool: `bitbucket_pr` | Bitbucket PR review/responder helper that auto-checks out PRs in a git worktree, fetches PR data/diffs, replies inline, and approves/requests changes via the Bitbucket API.                                       |
@@ -42,6 +43,20 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
   - PR review requires a clean working tree (no tracked uncommitted changes).
   - If `REVIEW_GUIDELINES.md` exists alongside the project's `.pi` directory, it is appended to the review prompt.
   - `/end-review` optionally summarizes the review branch before returning to the original session.
+
+#### simplify.ts
+
+- **Commands:** `/simplify`, `/end-simplify`
+- **Simplify targets:**
+  - `/simplify` (interactive selector)
+  - `/simplify uncommitted`
+  - `/simplify branch <name>`
+  - `/simplify snapshot <paths…>`
+  - `/simplify folder <paths…>` (alias for `snapshot`)
+- **Notes:**
+  - Reuses the shared review target prompts for uncommitted, branch, and snapshot selection, then asks the agent to directly simplify the scoped code.
+  - If `SIMPLIFY_GUIDELINES.md` exists alongside the project's `.pi` directory, it is appended to the prompt. Falls back to `REVIEW_GUIDELINES.md`.
+  - Like `/review`, it can start in an empty session branch and `/end-simplify` can return to the origin session with an optional summary.
 
 #### todos.ts
 
