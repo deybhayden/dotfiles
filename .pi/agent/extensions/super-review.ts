@@ -36,6 +36,7 @@ import {
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {
+  getLatestCustomState,
   hasUpstreamTrackingBranch,
   isSelectListActionInput,
   parseReviewPathsInput,
@@ -53,6 +54,10 @@ import {
   REVIEW_RUBRIC as SHARED_REVIEW_RUBRIC,
   UNCOMMITTED_PROMPT as SHARED_UNCOMMITTED_PROMPT,
 } from "./_shared/review-prompts.js";
+import {
+  COLLECT_END_TARGETS_EVENT,
+  type CollectEndTargetsEvent,
+} from "./_shared/end-events.js";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
@@ -86,10 +91,7 @@ function setSuperReviewWidget(ctx: ExtensionContext, active: boolean) {
 
   ctx.ui.setWidget("super-review", (_tui, theme) => {
     const text = new Text(
-      theme.fg(
-        "warning",
-        "Super-review session active, return with /end-super-review",
-      ),
+      theme.fg("warning", "Super-review session active, return with /end"),
       0,
       0,
     );
@@ -107,30 +109,16 @@ function setSuperReviewWidget(ctx: ExtensionContext, active: boolean) {
 function getSuperReviewState(
   ctx: ExtensionContext,
 ): SuperReviewSessionState | undefined {
-  let state: SuperReviewSessionState | undefined;
-  for (const entry of ctx.sessionManager.getBranch()) {
-    if (
-      entry.type === "custom" &&
-      entry.customType === SUPER_REVIEW_STATE_TYPE
-    ) {
-      state = entry.data as SuperReviewSessionState | undefined;
-    }
-  }
-
-  return state;
+  return getLatestCustomState<SuperReviewSessionState>(
+    ctx,
+    SUPER_REVIEW_STATE_TYPE,
+  );
 }
 
 function getReviewState(
   ctx: ExtensionContext,
 ): { active: boolean } | undefined {
-  let state: { active: boolean } | undefined;
-  for (const entry of ctx.sessionManager.getBranch()) {
-    if (entry.type === "custom" && entry.customType === "review-session") {
-      state = entry.data as { active: boolean } | undefined;
-    }
-  }
-
-  return state;
+  return getLatestCustomState<{ active: boolean }>(ctx, "review-session");
 }
 
 function applySuperReviewState(ctx: ExtensionContext) {
@@ -1907,7 +1895,7 @@ export default function superReviewExtension(pi: ExtensionAPI) {
 
       if (superReviewOriginId) {
         ctx.ui.notify(
-          "Already in a super-review. Use /end-super-review to finish first.",
+          "Already in a super-review. Use /end to finish first.",
           "warning",
         );
         return;
@@ -1916,7 +1904,7 @@ export default function superReviewExtension(pi: ExtensionAPI) {
       const reviewState = getReviewState(ctx);
       if (reviewState?.active) {
         ctx.ui.notify(
-          "A /review session is already active. Use /end-review to finish first.",
+          "A /review session is already active. Use /end to finish first.",
           "warning",
         );
         return;
@@ -2191,7 +2179,7 @@ export default function superReviewExtension(pi: ExtensionAPI) {
         }
 
         const completionMessage = useFreshSession
-          ? "Super-review complete. Use /end-super-review to return."
+          ? "Super-review complete. Use /end to return."
           : "Super-review complete (current session).";
         ctx.ui.notify(completionMessage, "info");
         return;
@@ -2256,12 +2244,12 @@ Instructions:
     ctx: ExtensionCommandContext,
   ): Promise<void> {
     if (!ctx.hasUI) {
-      ctx.ui.notify("End-super-review requires interactive mode", "error");
+      ctx.ui.notify("/end requires interactive mode", "error");
       return;
     }
 
     if (endSuperReviewInProgress) {
-      ctx.ui.notify("/end-super-review is already running", "info");
+      ctx.ui.notify("/end is already running", "info");
       return;
     }
 
@@ -2273,8 +2261,8 @@ Instructions:
       }
 
       const message = hasSuperReviewMessagesInBranch(ctx)
-        ? "Super-review results are in the current session. /end-super-review is only for empty-branch runs."
-        : "Not in a super-review branch (run /super-review and choose Empty branch to use /end-super-review).";
+        ? "Super-review results are in the current session. /end is only for empty-branch runs."
+        : "Not in a super-review branch (run /super-review and choose Empty branch to use /end).";
       ctx.ui.notify(message, "info");
       return;
     }
@@ -2288,7 +2276,7 @@ Instructions:
       ]);
 
       if (choice === undefined) {
-        ctx.ui.notify("Cancelled. Use /end-super-review to try again.", "info");
+        ctx.ui.notify("Cancelled. Use /end to try again.", "info");
         return;
       }
 
@@ -2304,7 +2292,7 @@ Instructions:
           const result = await ctx.navigateTree(originId, { summarize: false });
           if (result.cancelled) {
             ctx.ui.notify(
-              "Navigation cancelled. Use /end-super-review to try again.",
+              "Navigation cancelled. Use /end to try again.",
               "info",
             );
             return;
@@ -2355,7 +2343,7 @@ Instructions:
 
       if (summaryResult === null) {
         ctx.ui.notify(
-          "Summarization cancelled. Use /end-super-review to try again.",
+          "Summarization cancelled. Use /end to try again.",
           "info",
         );
         return;
@@ -2367,10 +2355,7 @@ Instructions:
       }
 
       if (summaryResult.cancelled) {
-        ctx.ui.notify(
-          "Navigation cancelled. Use /end-super-review to try again.",
-          "info",
-        );
+        ctx.ui.notify("Navigation cancelled. Use /end to try again.", "info");
         return;
       }
 
@@ -2397,11 +2382,18 @@ Instructions:
     }
   }
 
-  // Register the /end-super-review command
-  pi.registerCommand("end-super-review", {
-    description: "Complete super-review and return to original position",
-    handler: async (_args, ctx) => {
-      await runEndSuperReview(ctx);
-    },
+  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
+    const { ctx, targets } = event as CollectEndTargetsEvent;
+    if (!getSuperReviewState(ctx)?.active) {
+      return;
+    }
+
+    targets.push({
+      key: "super-review",
+      label: "Super-review",
+      run: async () => {
+        await runEndSuperReview(ctx);
+      },
+    });
   });
 }

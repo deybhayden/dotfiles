@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@mariozechner/pi-coding-agent";
 import { getKeybindings } from "@mariozechner/pi-tui";
 
 const SELECT_LIST_ACTIONS = [
@@ -122,6 +125,22 @@ export function parseReviewPathsInput(value: string): string[] {
   }
 
   return paths;
+}
+
+export function getLatestCustomState<T>(
+  ctx: ExtensionContext,
+  customType: string,
+): T | undefined {
+  const branch = ctx.sessionManager.getBranch();
+
+  for (let index = branch.length - 1; index >= 0; index -= 1) {
+    const entry = branch[index];
+    if (entry?.type === "custom" && entry.customType === customType) {
+      return entry.data as T | undefined;
+    }
+  }
+
+  return undefined;
 }
 
 export async function hasUpstreamTrackingBranch(

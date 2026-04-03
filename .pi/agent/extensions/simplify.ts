@@ -7,7 +7,7 @@
  * - a snapshot of folders/files
  *
  * Like `/review`, it can optionally run in a fresh session branch and later
- * return to the original position with `/end-simplify`.
+ * return to the original position with `/end`.
  *
  * Usage:
  * - `/simplify` - show interactive selector
@@ -32,10 +32,15 @@ import { Text } from "@mariozechner/pi-tui";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {
+  getLatestCustomState,
   hasUpstreamTrackingBranch,
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
+import {
+  COLLECT_END_TARGETS_EVENT,
+  type CollectEndTargetsEvent,
+} from "./_shared/end-events.js";
 import {
   BASE_BRANCH_PROMPT_FALLBACK as SHARED_BASE_BRANCH_PROMPT_FALLBACK,
   BASE_BRANCH_PROMPT_WITH_MERGE_BASE as SHARED_BASE_BRANCH_PROMPT_WITH_MERGE_BASE,
@@ -120,10 +125,7 @@ function setSimplifyWidget(ctx: ExtensionContext, active: boolean) {
     active
       ? (_tui, theme) =>
           new Text(
-            theme.fg(
-              "warning",
-              "Simplify session active, return with /end-simplify",
-            ),
+            theme.fg("warning", "Simplify session active, return with /end"),
             0,
             0,
           )
@@ -134,16 +136,7 @@ function setSimplifyWidget(ctx: ExtensionContext, active: boolean) {
 function getSimplifyState(
   ctx: ExtensionContext,
 ): SimplifySessionState | undefined {
-  const branch = ctx.sessionManager.getBranch();
-
-  for (let index = branch.length - 1; index >= 0; index -= 1) {
-    const entry = branch[index];
-    if (entry?.type === "custom" && entry.customType === SIMPLIFY_STATE_TYPE) {
-      return entry.data as SimplifySessionState | undefined;
-    }
-  }
-
-  return undefined;
+  return getLatestCustomState<SimplifySessionState>(ctx, SIMPLIFY_STATE_TYPE);
 }
 
 function applySimplifyState(ctx: ExtensionContext) {
@@ -488,7 +481,7 @@ async function executeSimplify(
 ): Promise<void> {
   if (simplifyOriginId) {
     ctx.ui.notify(
-      "Already in a simplify session. Use /end-simplify to finish first.",
+      "Already in a simplify session. Use /end to finish first.",
       "warning",
     );
     return;
@@ -608,12 +601,12 @@ async function runEndSimplify(
   ctx: ExtensionCommandContext,
 ): Promise<void> {
   if (!ctx.hasUI) {
-    ctx.ui.notify("End-simplify requires interactive mode", "error");
+    ctx.ui.notify("/end requires interactive mode", "error");
     return;
   }
 
   if (endSimplifyInProgress) {
-    ctx.ui.notify("/end-simplify is already running", "info");
+    ctx.ui.notify("/end is already running", "info");
     return;
   }
 
@@ -645,7 +638,7 @@ async function runEndSimplify(
     ]);
 
     if (choice === undefined) {
-      ctx.ui.notify("Cancelled. Use /end-simplify to try again.", "info");
+      ctx.ui.notify("Cancelled. Use /end to try again.", "info");
       return;
     }
 
@@ -653,10 +646,7 @@ async function runEndSimplify(
       try {
         const result = await ctx.navigateTree(originId, { summarize: false });
         if (result.cancelled) {
-          ctx.ui.notify(
-            "Navigation cancelled. Use /end-simplify to try again.",
-            "info",
-          );
+          ctx.ui.notify("Navigation cancelled. Use /end to try again.", "info");
           return;
         }
       } catch (error) {
@@ -704,10 +694,7 @@ async function runEndSimplify(
     });
 
     if (summaryResult === null) {
-      ctx.ui.notify(
-        "Summarization cancelled. Use /end-simplify to try again.",
-        "info",
-      );
+      ctx.ui.notify("Summarization cancelled. Use /end to try again.", "info");
       return;
     }
 
@@ -717,10 +704,7 @@ async function runEndSimplify(
     }
 
     if (summaryResult.cancelled) {
-      ctx.ui.notify(
-        "Navigation cancelled. Use /end-simplify to try again.",
-        "info",
-      );
+      ctx.ui.notify("Navigation cancelled. Use /end to try again.", "info");
       return;
     }
 
@@ -759,7 +743,7 @@ export default function simplifyExtension(pi: ExtensionAPI) {
 
       if (simplifyOriginId) {
         ctx.ui.notify(
-          "Already in a simplify session. Use /end-simplify to finish first.",
+          "Already in a simplify session. Use /end to finish first.",
           "warning",
         );
         return;
@@ -814,11 +798,18 @@ export default function simplifyExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("end-simplify", {
-    description:
-      "Complete simplify session and return to the original position",
-    handler: async (_args, ctx) => {
-      await runEndSimplify(pi, ctx);
-    },
+  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
+    const { ctx, targets } = event as CollectEndTargetsEvent;
+    if (!getSimplifyState(ctx)?.active) {
+      return;
+    }
+
+    targets.push({
+      key: "simplify",
+      label: "Simplify",
+      run: async () => {
+        await runEndSimplify(pi, ctx);
+      },
+    });
   });
 }
