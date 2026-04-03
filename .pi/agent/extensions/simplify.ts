@@ -789,7 +789,7 @@ export default function simplifyExtension(pi: ExtensionAPI) {
     applySimplifyState(ctx);
   });
 
-  pi.on("session_switch", (_event, ctx) => {
+  pi.on("session_before_switch", (_event, ctx) => {
     applySimplifyState(ctx);
   });
 

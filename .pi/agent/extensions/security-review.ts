@@ -701,7 +701,7 @@ export default function securityReviewExtension(pi: ExtensionAPI) {
     applySecurityReviewState(ctx);
   });
 
-  pi.on("session_switch", (_event, ctx) => {
+  pi.on("session_before_switch", (_event, ctx) => {
     applySecurityReviewState(ctx);
   });
 

@@ -1833,7 +1833,7 @@ export default function superReviewExtension(pi: ExtensionAPI) {
     applySuperReviewState(ctx);
   });
 
-  pi.on("session_switch", (_event, ctx) => {
+  pi.on("session_before_switch", (_event, ctx) => {
     applySuperReviewState(ctx);
   });
 
