@@ -11,7 +11,20 @@ function getActiveTargets(
 ) {
   const event: CollectEndTargetsEvent = { ctx, targets: [] };
   pi.events.emit(COLLECT_END_TARGETS_EVENT, event);
-  return event.targets;
+
+  const seen = new Set<string>();
+  const deduped: typeof event.targets = [];
+
+  for (let index = event.targets.length - 1; index >= 0; index -= 1) {
+    const target = event.targets[index]!;
+    if (seen.has(target.key)) {
+      continue;
+    }
+    seen.add(target.key);
+    deduped.unshift(target);
+  }
+
+  return deduped;
 }
 
 export default function endExtension(pi: ExtensionAPI) {

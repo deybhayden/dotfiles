@@ -27,8 +27,13 @@ import type {
   ExtensionContext,
   ExtensionCommandContext,
 } from "@mariozechner/pi-coding-agent";
-import { BorderedLoader } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import { DynamicBorder, BorderedLoader } from "@mariozechner/pi-coding-agent";
+import {
+  Container,
+  type SelectItem,
+  SelectList,
+  Text,
+} from "@mariozechner/pi-tui";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {
@@ -37,6 +42,7 @@ import {
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
+import { registerReloadableEventBusListener } from "./_shared/reloadable-event-bus.js";
 import {
   COLLECT_END_TARGETS_EVENT,
   type CollectEndTargetsEvent,
@@ -331,9 +337,77 @@ function getUserFacingHint(target: SimplifyTarget): string {
   }
 }
 
-async function getSmartDefault(
-  pi: ExtensionAPI,
-): Promise<"uncommitted" | "baseBranch" | "folder"> {
+type SimplifyPresetValue = "uncommitted" | "baseBranch" | "folder";
+
+async function showPresetSelector(
+  ctx: ExtensionContext,
+  smartDefault: SimplifyPresetValue,
+): Promise<SimplifyPresetValue | null> {
+  const items: SelectItem[] = [
+    {
+      value: "uncommitted",
+      label: "Uncommitted changes",
+      description: smartDefault === "uncommitted" ? "recommended" : "",
+    },
+    {
+      value: "baseBranch",
+      label: "Local branch diff",
+      description:
+        smartDefault === "baseBranch" ? "(local) recommended" : "(local)",
+    },
+    {
+      value: "folder",
+      label: "Snapshot of folders/files",
+      description:
+        smartDefault === "folder" ? "(snapshot) recommended" : "(snapshot)",
+    },
+  ];
+  const selectedIndex = items.findIndex((item) => item.value === smartDefault);
+
+  return ctx.ui.custom<SimplifyPresetValue | null>((tui, theme, _kb, done) => {
+    const container = new Container();
+    container.addChild(new DynamicBorder((str) => theme.fg("accent", str)));
+    container.addChild(
+      new Text(theme.fg("accent", theme.bold("Select a simplify target"))),
+    );
+
+    const selectList = new SelectList(items, Math.min(items.length, 10), {
+      selectedPrefix: (text) => theme.fg("accent", text),
+      selectedText: (text) => theme.fg("accent", text),
+      description: (text) => theme.fg("muted", text),
+      scrollInfo: (text) => theme.fg("dim", text),
+      noMatch: (text) => theme.fg("warning", text),
+    });
+
+    if (selectedIndex >= 0) {
+      selectList.setSelectedIndex(selectedIndex);
+    }
+
+    selectList.onSelect = (item) => done(item.value as SimplifyPresetValue);
+    selectList.onCancel = () => done(null);
+
+    container.addChild(selectList);
+    container.addChild(
+      new Text(theme.fg("dim", "Press enter to confirm or esc to go back")),
+    );
+    container.addChild(new DynamicBorder((str) => theme.fg("accent", str)));
+
+    return {
+      render(width: number) {
+        return container.render(width);
+      },
+      invalidate() {
+        container.invalidate();
+      },
+      handleInput(data: string) {
+        selectList.handleInput(data);
+        tui.requestRender();
+      },
+    };
+  });
+}
+
+async function getSmartDefault(pi: ExtensionAPI): Promise<SimplifyPresetValue> {
   if (await hasUncommittedChanges(pi)) {
     return "uncommitted";
   }
@@ -425,34 +499,25 @@ async function showSimplifySelector(
   const smartDefault = await getSmartDefault(pi);
 
   while (true) {
-    const options = [
-      smartDefault === "uncommitted"
-        ? "Uncommitted changes (recommended)"
-        : "Uncommitted changes",
-      smartDefault === "baseBranch"
-        ? "Local branch diff (recommended)"
-        : "Local branch diff",
-      smartDefault === "folder"
-        ? "Snapshot of folders/files (recommended)"
-        : "Snapshot of folders/files",
-    ];
+    const result = await showPresetSelector(ctx, smartDefault);
 
-    const choice = await ctx.ui.select("Select a simplify target:", options);
-    if (choice === undefined) return null;
+    if (!result) return null;
 
-    if (choice.startsWith("Uncommitted changes")) {
-      return { type: "uncommitted" };
-    }
+    switch (result) {
+      case "uncommitted":
+        return { type: "uncommitted" };
 
-    if (choice.startsWith("Local branch diff")) {
-      const target = await showBranchSelector(pi, ctx);
-      if (target) return target;
-      continue;
-    }
+      case "baseBranch": {
+        const target = await showBranchSelector(pi, ctx);
+        if (target) return target;
+        break;
+      }
 
-    if (choice.startsWith("Snapshot of folders/files")) {
-      const target = await showSnapshotInput(ctx);
-      if (target) return target;
+      case "folder": {
+        const target = await showSnapshotInput(ctx);
+        if (target) return target;
+        break;
+      }
     }
   }
 }
@@ -798,18 +863,21 @@ export default function simplifyExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
-    const { ctx, targets } = event as CollectEndTargetsEvent;
-    if (!getSimplifyState(ctx)?.active) {
-      return;
-    }
+  registerReloadableEventBusListener(
+    pi,
+    "simplify:collect-end-targets",
+    COLLECT_END_TARGETS_EVENT,
+    (event) => {
+      const { ctx, targets } = event as CollectEndTargetsEvent;
+      if (!getSimplifyState(ctx)?.active) {
+        return;
+      }
 
-    targets.push({
-      key: "simplify",
-      label: "Simplify",
-      run: async () => {
-        await runEndSimplify(pi, ctx);
-      },
-    });
-  });
+      targets.push({
+        key: "simplify",
+        label: "Simplify",
+        run: () => runEndSimplify(pi, ctx),
+      });
+    },
+  );
 }

@@ -47,6 +47,7 @@ import {
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
+import { registerReloadableEventBusListener } from "./_shared/reloadable-event-bus.js";
 import {
   BASE_BRANCH_PROMPT_FALLBACK as SHARED_BASE_BRANCH_PROMPT_FALLBACK,
   BASE_BRANCH_PROMPT_WITH_MERGE_BASE as SHARED_BASE_BRANCH_PROMPT_WITH_MERGE_BASE,
@@ -1534,18 +1535,21 @@ Instructions:
     }
   }
 
-  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
-    const { ctx, targets } = event as CollectEndTargetsEvent;
-    if (!getReviewState(ctx)?.active) {
-      return;
-    }
+  registerReloadableEventBusListener(
+    pi,
+    "review:collect-end-targets",
+    COLLECT_END_TARGETS_EVENT,
+    (event) => {
+      const { ctx, targets } = event as CollectEndTargetsEvent;
+      if (!getReviewState(ctx)?.active) {
+        return;
+      }
 
-    targets.push({
-      key: "review",
-      label: "Review",
-      run: async () => {
-        await runEndReview(ctx);
-      },
-    });
-  });
+      targets.push({
+        key: "review",
+        label: "Review",
+        run: () => runEndReview(ctx),
+      });
+    },
+  );
 }

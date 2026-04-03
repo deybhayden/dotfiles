@@ -45,6 +45,7 @@ import {
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
+import { registerReloadableEventBusListener } from "./_shared/reloadable-event-bus.js";
 import { runPreflightScan, type ScanScope } from "./security-scan.js";
 import {
   BASE_BRANCH_PROMPT_FALLBACK as SHARED_BASE_BRANCH_PROMPT_FALLBACK,
@@ -1712,18 +1713,21 @@ Instructions:
     }
   }
 
-  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
-    const { ctx, targets } = event as CollectEndTargetsEvent;
-    if (!getSecurityReviewState(ctx)?.active) {
-      return;
-    }
+  registerReloadableEventBusListener(
+    pi,
+    "security-review:collect-end-targets",
+    COLLECT_END_TARGETS_EVENT,
+    (event) => {
+      const { ctx, targets } = event as CollectEndTargetsEvent;
+      if (!getSecurityReviewState(ctx)?.active) {
+        return;
+      }
 
-    targets.push({
-      key: "security-review",
-      label: "Security review",
-      run: async () => {
-        await runEndSecurityReview(ctx);
-      },
-    });
-  });
+      targets.push({
+        key: "security-review",
+        label: "Security review",
+        run: () => runEndSecurityReview(ctx),
+      });
+    },
+  );
 }
