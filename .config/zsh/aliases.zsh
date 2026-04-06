@@ -18,16 +18,12 @@ alias myip-ingress="dig +short txt ch whoami.cloudflare @1.0.0.1 | xargs sh -c '
 alias ls="eza"
 alias sl="eza"
 alias ll="eza --long --all"
-alias lt="eza --long --tree --level=3 --color=always | less -R"
 
 # docker
 alias dex="docker exec -it"
 
 # python
 alias venv!="source .venv/bin/activate"
-
-# node
-alias nr="npm run"
 
 # terraform
 alias tf="terraform"
@@ -42,5 +38,3 @@ alias pi-review="pi --provider openai-codex --model gpt-5.4 --thinking xhigh '/r
 alias pi-codex="pi --provider openai-codex --model gpt-5.3-codex --thinking high"
 alias pi-opus="pi --provider anthropic --model claude-opus-4.6 --thinking high"
 alias pi-sonnet="pi --provider anthropic --model claude-sonnet-4.6 --thinking medium"
-alias pi-security-review="pi --provider openai-codex --model gpt-5.4 --thinking xhigh '/security-review'"
-alias pi-super-review="pi '/super-review'"
