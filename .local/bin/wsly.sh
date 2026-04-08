@@ -87,8 +87,9 @@ if ! command -v zsh >/dev/null 2>&1; then
 
   # Node
   echo "Installing node tools"
-  npm install -g @mariozechner/pi-coding-agent agent-browser
+  npm install -g @google/gemini-cli @mariozechner/pi-coding-agent @openai/codex agent-browser 
   agent-browser install --with-deps
+  curl -fsSL https://claude.ai/install.sh | bash
 
   # Otpgen
   echo "Installing otpgen"
