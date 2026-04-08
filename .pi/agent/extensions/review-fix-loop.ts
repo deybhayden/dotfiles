@@ -492,10 +492,9 @@ export default function reviewFixLoopExtension(pi: ExtensionAPI) {
   let loopActive = false;
 
   // ── Send-and-wait helper ─────────────────────────────────────────────
-  // We can't use sendUserMessage + waitForIdle because waitForIdle resolves
-  // immediately if the agent hasn't started streaming yet (race condition).
-  // Instead, register the resolve callback BEFORE sending the message so
-  // agent_end fires into a waiting promise.
+  // Register callback BEFORE sending to avoid "waitForIdle resolved too early"
+  // races. Also note: agent_end fires before the run is fully finalized, so we
+  // must additionally wait for ctx.waitForIdle() after agent_end.
   let agentEndResolve: (() => void) | null = null;
 
   pi.on("agent_end", () => {
@@ -506,9 +505,15 @@ export default function reviewFixLoopExtension(pi: ExtensionAPI) {
     }
   });
 
-  function sendAndWaitForAgent(prompt: string): Promise<void> {
-    return new Promise<void>((resolve) => {
-      agentEndResolve = resolve;
+  function sendAndWaitForAgent(
+    ctx: ExtensionCommandContext,
+    prompt: string,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      agentEndResolve = () => {
+        // Do not await inside the agent_end listener itself (that can deadlock).
+        void ctx.waitForIdle().then(resolve).catch(reject);
+      };
       pi.sendUserMessage(prompt);
     });
   }
@@ -1078,7 +1083,7 @@ export default function reviewFixLoopExtension(pi: ExtensionAPI) {
           "info",
         );
 
-        await sendAndWaitForAgent(reviewPrompt);
+        await sendAndWaitForAgent(ctx, reviewPrompt);
 
         // ── Check verdict ────────────────────────────────────────────
         const assistantText = getLastAssistantText(ctx);
@@ -1137,7 +1142,7 @@ export default function reviewFixLoopExtension(pi: ExtensionAPI) {
           "info",
         );
 
-        await sendAndWaitForAgent(FIX_PROMPT);
+        await sendAndWaitForAgent(ctx, FIX_PROMPT);
       }
     } finally {
       loopActive = false;
