@@ -1,0 +1,10 @@
+use_gh() {
+  local account="${1:?Usage: use gh <account>}"
+  local token
+  token="$(gh auth token --user "$account" 2>/dev/null)"
+  if [[ -z "$token" ]]; then
+    log_error "gh: no token found for account '$account'"
+    return 1
+  fi
+  export GH_TOKEN="$token"
+}
