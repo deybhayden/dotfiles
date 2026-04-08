@@ -34,7 +34,8 @@ alias aws-sso="aws sso login --sso-session"
 alias aws-whoami="aws sts get-caller-identity"
 
 # pi
-alias pi-review="pi --provider openai-codex --model gpt-5.4 --thinking xhigh '/review'"
-alias pi-codex="pi --provider openai-codex --model gpt-5.3-codex --thinking high"
+alias pi-review="pi --provider openai-codex --model gpt-5.3-codex --thinking xhigh '/review'"
+alias pi-gpt="pi --provider openai-codex --model gpt-5.4 --thinking high"
 alias pi-opus="pi --provider anthropic --model claude-opus-4.6 --thinking high"
 alias pi-sonnet="pi --provider anthropic --model claude-sonnet-4.6 --thinking medium"
+alias pi-pr="pi --provider openai-codex --model gpt-5.4 --thinking high -p 'create a pr for this branch'"
