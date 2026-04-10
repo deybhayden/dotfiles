@@ -62,8 +62,8 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf install github-cli 2.86.0
   asdf set -u github-cli 2.86.0
   asdf plugin add golang
-  asdf install golang 1.26.0
-  asdf set -u golang 1.26.0
+  asdf install golang 1.26.1
+  asdf set -u golang 1.26.1
   asdf plugin add nodejs
   asdf install nodejs 24.14.1
   asdf set -u nodejs 24.14.1
