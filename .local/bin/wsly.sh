@@ -77,8 +77,8 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf install uv 0.10.2
   asdf set -u uv 0.10.2
   asdf plugin add python
-  asdf install python 3.12.8
-  asdf set -u python 3.12.8
+  asdf install python 3.14.4
+  asdf set -u python 3.14.4
 
   # Python
   echo "Installing uv tools"
