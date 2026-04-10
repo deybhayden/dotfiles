@@ -1,5 +1,5 @@
 nodejs 24.14.1
-uv 0.10.2
+uv 0.11.6
 awscli 2.33.21
 terraform 1.14.5
 terragrunt 0.99.4
