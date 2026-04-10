@@ -1,4 +1,4 @@
-nodejs 22.22.0
+nodejs 24.14.1
 uv 0.10.2
 awscli 2.33.21
 terraform 1.14.5
