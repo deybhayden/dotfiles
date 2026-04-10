@@ -77,21 +77,21 @@ function asdf() {
 # agent-browser
 function agent-browser() {
   if [[ "$1" == "update" ]]; then
-    ASDF_NODEJS_VERSION=22.22.0 asdf exec npm install -g agent-browser@latest --loglevel=error
+    ASDF_NODEJS_VERSION=24.14.1 asdf exec npm install -g agent-browser@latest --loglevel=error
     echo -e "\033[0;32mAgent Browser updated.\033[0m"
   else
-    ASDF_NODEJS_VERSION=22.22.0 asdf exec agent-browser "$@"
+    ASDF_NODEJS_VERSION=24.14.1 asdf exec agent-browser "$@"
   fi
 }
 
 # pi
 function pi() {
   if [[ "$1" == "update" ]]; then
-    ASDF_NODEJS_VERSION=22.22.0 asdf exec npm install -g @mariozechner/pi-coding-agent --loglevel=error
+    ASDF_NODEJS_VERSION=24.14.1 asdf exec npm install -g @mariozechner/pi-coding-agent --loglevel=error
     echo -e "\033[0;32mPi updated.\033[0m"
-    ASDF_NODEJS_VERSION=22.22.0 asdf exec pi update
+    ASDF_NODEJS_VERSION=24.14.1 asdf exec pi update
   else
-    ASDF_NODEJS_VERSION=22.22.0 asdf exec pi "$@"
+    ASDF_NODEJS_VERSION=24.14.1 asdf exec pi "$@"
   fi
 }
 

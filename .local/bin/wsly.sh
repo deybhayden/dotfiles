@@ -65,8 +65,8 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf install golang 1.26.0
   asdf set -u golang 1.26.0
   asdf plugin add nodejs
-  asdf install nodejs 22.22.0
-  asdf set -u nodejs 22.22.0
+  asdf install nodejs 24.14.1
+  asdf set -u nodejs 24.14.1
   asdf plugin add terraform
   asdf install terraform 1.14.5
   asdf set -u terraform 1.14.5
