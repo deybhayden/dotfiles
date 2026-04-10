@@ -74,8 +74,8 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf install terragrunt 0.99.4
   asdf set -u terragrunt 0.99.4
   asdf plugin add uv
-  asdf install uv 0.10.2
-  asdf set -u uv 0.10.2
+  asdf install uv 0.11.6
+  asdf set -u uv 0.11.6
   asdf plugin add python
   asdf install python 3.14.4
   asdf set -u python 3.14.4
