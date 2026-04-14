@@ -1,10 +1,28 @@
 use_gh() {
   local account="${1:?Usage: use gh <account>}"
-  local token
-  token="$(gh auth token --user "$account" 2>/dev/null)"
-  if [[ -z "$token" ]]; then
-    log_error "gh: no token found for account '$account'"
+  local hosts_file token
+
+  hosts_file="${XDG_CONFIG_HOME:-$HOME/.config}/gh/hosts.yml"
+  if [[ ! -f "$hosts_file" ]]; then
+    log_error "gh: hosts file not found at '$hosts_file'"
     return 1
   fi
+
+  token="$(awk -v account="$account" '
+    $0 == "    users:" { in_users = 1; next }
+    in_users && $0 == "        " account ":" { in_account = 1; next }
+    in_account && $0 ~ /^            oauth_token: / {
+      sub(/^            oauth_token: /, "", $0)
+      print
+      exit
+    }
+    in_account && $0 !~ /^            / { in_account = 0 }
+  ' "$hosts_file")"
+
+  if [[ -z "$token" ]]; then
+    log_error "gh: no token found for account '$account' in '$hosts_file'"
+    return 1
+  fi
+
   export GH_TOKEN="$token"
 }
