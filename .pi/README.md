@@ -9,10 +9,10 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 | File                   | Commands/Tools                                                  | Summary                                                                                                                                                                                                            |
 | ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `answer.ts`            | `/answer`, `Ctrl+.`                                             | Extracts questions from the last assistant reply and opens an interactive Q&A UI to answer them. Sends a custom message with the compiled answers.                                                                 |
-| `end.ts`               | `/end`                                                          | Smart end command that detects the active child workflow and calls its internal end handler for review, security-review, simplify, or super-review sessions.                                                     |
+| `end.ts`               | `/end`                                                          | Smart end command that detects the active child workflow and calls its internal end handler for review, security-review, simplify, or super-review sessions.                                                       |
 | `review.ts`            | `/review`                                                       | Interactive code review workflow for GitHub PRs, branches, commits, uncommitted changes, or custom instructions. Supports a fresh review branch and optional summarization when ending the review via `/end`.      |
-| `security-review.ts`   | `/security-review`                                              | Security-focused review workflow using the same target selection as `/review`, plus preflight scanning and a security rubric. Fresh-session runs return via `/end`.                                              |
-| `simplify.ts`          | `/simplify`                                                     | Interactive simplification workflow for uncommitted changes, local branch diffs, or snapshot paths. Can run in a fresh session branch and optionally summarize the simplification work when returning via `/end`. |
+| `security-review.ts`   | `/security-review`                                              | Security-focused review workflow using the same target selection as `/review`, plus preflight scanning and a security rubric. Fresh-session runs return via `/end`.                                                |
+| `simplify.ts`          | `/simplify`                                                     | Interactive simplification workflow for uncommitted changes, local branch diffs, or snapshot paths. Can run in a fresh session branch and optionally summarize the simplification work when returning via `/end`.  |
 | `todos.ts`             | `/todos`, tool: `todo`                                          | File-based todo manager (stored in `.pi/todos` or `$PI_TODO_PATH`) with interactive TUI plus LLM tool actions.                                                                                                     |
 | `uv.ts`                | tool: `bash` (wrapped)                                          | Redirects Python tooling to `uv` equivalents by prepending shim commands to `PATH`. Blocks `pip`/`poetry` and rewrites `python` to `uv run`.                                                                       |
 | `bitbucket.ts`         | `/bitbucket review`, `/bitbucket respond`, tool: `bitbucket_pr` | Bitbucket PR review/responder helper that auto-checks out PRs in a git worktree, fetches PR data/diffs, replies inline, and approves/requests changes via the Bitbucket API.                                       |
@@ -243,7 +243,7 @@ Registers two tools: `web_search` and `fetch_url`.
     "models": [
       {
         "provider": "anthropic",
-        "id": "claude-opus-4.6",
+        "id": "claude-opus-4-7",
         "label": "Opus"
       },
       {
@@ -253,7 +253,7 @@ Registers two tools: `web_search` and `fetch_url`.
         "thinkingLevel": "medium"
       }
     ],
-    "summaryModel": { "provider": "anthropic", "id": "claude-opus-4.6" },
+    "summaryModel": { "provider": "anthropic", "id": "claude-opus-4-7" },
     "summaryPrompt": "(optional extra instructions for the summary step)",
     "maxParallel": 2
   }
