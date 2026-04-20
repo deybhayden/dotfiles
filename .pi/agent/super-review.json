@@ -8,7 +8,7 @@
     },
     {
       "provider": "anthropic",
-      "id": "claude-opus-4-7",
+      "id": "claude-opus-4-6",
       "label": "Opus",
       "thinkingLevel": "xhigh"
     }
