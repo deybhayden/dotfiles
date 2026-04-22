@@ -7,7 +7,7 @@ import {
   type TruncationResult,
 } from "@mariozechner/pi-coding-agent";
 import { StringEnum } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import {
   mkdtempSync,
   writeFileSync,
@@ -145,7 +145,7 @@ export default function (pi: ExtensionAPI) {
 }
 
 function registerBitbucketTool(pi: ExtensionAPI) {
-  pi.registerTool({
+  const tool: any = {
     name: "bitbucket_pr",
     label: "Bitbucket PR",
     description:
@@ -283,7 +283,9 @@ function registerBitbucketTool(pi: ExtensionAPI) {
         };
       }
     },
-  });
+  };
+
+  pi.registerTool(tool);
 }
 
 function registerBitbucketCommand(pi: ExtensionAPI) {

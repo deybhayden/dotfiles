@@ -11,7 +11,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { Readability } from "@mozilla/readability";
 import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { JSDOM } from "jsdom";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -362,7 +362,7 @@ function formatSearchResults(
 export default function webSearchExtension(pi: ExtensionAPI) {
   // ── Tool 1: web_search (Brave) ─────────────────────────────────
 
-  pi.registerTool({
+  const webSearchTool: any = {
     name: "web_search",
     label: "Web Search",
     description:
@@ -486,11 +486,13 @@ export default function webSearchExtension(pi: ExtensionAPI) {
 
       return new Text(text, 0, 0);
     },
-  });
+  };
+
+  pi.registerTool(webSearchTool);
 
   // ── Tool 2: fetch_url ──────────────────────────────────────────
 
-  pi.registerTool({
+  const fetchUrlTool: any = {
     name: "fetch_url",
     label: "Fetch URL",
     description:
@@ -602,5 +604,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
 
       return new Text(text, 0, 0);
     },
-  });
+  };
+
+  pi.registerTool(fetchUrlTool);
 }

@@ -41,7 +41,7 @@ import {
   type Theme,
 } from "@mariozechner/pi-coding-agent";
 import { StringEnum } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -1643,7 +1643,7 @@ export default function todosExtension(pi: ExtensionAPI) {
 
   const todosDirLabel = getTodosDirLabel(process.cwd());
 
-  pi.registerTool({
+  const todoTool: any = {
     name: "todo",
     label: "Todo",
     description:
@@ -2041,7 +2041,9 @@ export default function todosExtension(pi: ExtensionAPI) {
       }
       return new Text(text, 0, 0);
     },
-  });
+  };
+
+  pi.registerTool(todoTool);
 
   pi.registerCommand("todos", {
     description: "List todos from .pi/todos",

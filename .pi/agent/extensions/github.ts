@@ -7,7 +7,7 @@ import {
   type TruncationResult,
 } from "@mariozechner/pi-coding-agent";
 import { StringEnum } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { mkdtempSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, basename, resolve as resolvePath } from "node:path";
@@ -107,7 +107,7 @@ export default function (pi: ExtensionAPI) {
 }
 
 function registerGitHubTool(pi: ExtensionAPI) {
-  pi.registerTool({
+  const tool: any = {
     name: "github_pr",
     label: "GitHub PR",
     description:
@@ -209,7 +209,9 @@ function registerGitHubTool(pi: ExtensionAPI) {
         };
       }
     },
-  });
+  };
+
+  pi.registerTool(tool);
 }
 
 function registerGitHubCommand(pi: ExtensionAPI) {
