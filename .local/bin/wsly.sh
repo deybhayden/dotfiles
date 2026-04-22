@@ -22,7 +22,7 @@ if ! command -v zsh >/dev/null 2>&1; then
     libgdbm-dev libgdbm-compat-dev libnss3-dev uuid-dev libdb-dev
 
   # Tools
-  sudo apt install amazon-ecr-credential-helper curl direnv dnsutils eza fd-find ffmpeg imagemagick jq nmap ntpdate ripgrep stow unzip vim wget wl-clipboard wslu xdg-utils zip
+  sudo apt install amazon-ecr-credential-helper curl direnv dnsutils eza fd-find ffmpeg imagemagick jq libsixel-bin nmap ntpdate ripgrep stow unzip vim wget wl-clipboard wslu xdg-utils zip
 
   echo "Configuring MongoDB apt source"
   if [ ! -f /usr/share/keyrings/mongodb-server-8.0.gpg ]; then
