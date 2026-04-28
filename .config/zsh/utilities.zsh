@@ -86,13 +86,7 @@ function agent-browser() {
 
 # pi
 function pi() {
-  if [[ "$1" == "update" ]]; then
-    ASDF_NODEJS_VERSION=24.14.1 asdf exec npm install -g @mariozechner/pi-coding-agent --loglevel=error
-    echo -e "\033[0;32mPi updated.\033[0m"
-    ASDF_NODEJS_VERSION=24.14.1 asdf exec pi update
-  else
-    ASDF_NODEJS_VERSION=24.14.1 asdf exec pi "$@"
-  fi
+  ASDF_NODEJS_VERSION=24.14.1 asdf exec pi "$@"
 }
 
 function pi-bb-review() {
