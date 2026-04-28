@@ -1,0 +1,14 @@
+{
+  "providers": {
+    "llama-cpp": {
+      "baseUrl": "http://localhost:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "none",
+      "models": [
+        {
+          "id": "ggml-org-gemma-4-26b-4b-gguf"
+        }
+      ]
+    }
+  }
+}
