@@ -243,7 +243,7 @@ Registers two tools: `web_search` and `fetch_url`.
     "models": [
       {
         "provider": "anthropic",
-        "id": "claude-opus-4-6",
+        "id": "claude-opus-4-7",
         "label": "Opus"
       },
       {
@@ -253,7 +253,7 @@ Registers two tools: `web_search` and `fetch_url`.
         "thinkingLevel": "medium"
       }
     ],
-    "summaryModel": { "provider": "anthropic", "id": "claude-opus-4-6" },
+    "summaryModel": { "provider": "anthropic", "id": "claude-opus-4-7" },
     "summaryPrompt": "(optional extra instructions for the summary step)",
     "maxParallel": 2
   }
