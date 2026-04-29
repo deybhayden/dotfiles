@@ -96,6 +96,15 @@ function gwtclean() {
   git worktree list
 }
 
+function gl-pwd() {
+  for dir in *(/N); do
+    if [[ -d "$dir/.git" ]]; then
+      echo "\n\033[1;34m==> $dir\033[0m"
+      git -C "$dir" pull --rebase
+    fi
+  done
+}
+
 # github cli
 alias gha="gh auth status"
 alias ghl="gh auth login"
