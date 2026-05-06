@@ -90,17 +90,17 @@ function pi() {
 }
 
 function pi-bb-review() {
-  pi --provider openai-codex --model gpt-5.4 --thinking xhigh "/bitbucket review $@"
+  pi --provider openai-codex --model gpt-5.5 --thinking xhigh "/bitbucket review $@"
 }
 
 function pi-bb-respond() {
-  pi --provider anthropic --model opus-4-7 --thinking high "/bitbucket respond $@"
+  pi --provider fireworks --model accounts/fireworks/models/deepseek-v4-pro --thinking high "/bitbucket respond $@"
 }
 
 function pi-gh-review() {
-  pi --provider openai-codex --model gpt-5.4 --thinking xhigh "/github review $@"
+  pi --provider openai-codex --model gpt-5.5 --thinking xhigh "/github review $@"
 }
 
 function pi-gh-respond() {
-  pi --provider anthropic --model opus-4-7 --thinking high "/github respond $@"
+  pi --provider fireworks --model accounts/fireworks/models/deepseek-v4-pro --thinking high "/github respond $@"
 }

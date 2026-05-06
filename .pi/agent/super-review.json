@@ -1,22 +1,21 @@
 {
   "models": [
     {
-      "provider": "openai-codex",
-      "id": "gpt-5.3-codex",
-      "label": "Codex",
-      "thinkingLevel": "xhigh"
+      "provider": "fireworks",
+      "id": "accounts/fireworks/models/deepseek-v4-pro",
+      "label": "Deepseek",
+      "thinkingLevel": "high"
     },
     {
-      "provider": "anthropic",
-      "id": "claude-opus-4-7",
-      "label": "Opus",
+      "provider": "openai",
+      "id": "gpt-5.5",
+      "label": "GPT 5.5",
       "thinkingLevel": "xhigh"
     }
   ],
   "summaryModel": {
-    "provider": "anthropic",
-    "id": "claude-sonnet-4.6",
-    "label": "Sonnet",
+    "provider": "fireworks",
+    "id": "accounts/fireworks/routers/kimi-k2p5-turbo",
     "thinkingLevel": "medium"
   },
   "maxParallel": 2,

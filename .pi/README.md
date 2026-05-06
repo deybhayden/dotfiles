@@ -28,7 +28,7 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 
 - **Command:** `/answer` (or `Ctrl+.`)
 - **Behavior:** Extracts questions from the last assistant message, then opens a TUI to answer them. Submits the compiled Q&A as a custom message and triggers a new turn.
-- **Notes:** Requires interactive mode. Prefers Codex mini for extraction, then anthropic Haiku, then the current model.
+- **Notes:** Requires interactive mode. Prefers Codex mini for extraction, then Kimi K2.5, then the current model.
 
 #### end.ts
 
@@ -242,18 +242,23 @@ Registers two tools: `web_search` and `fetch_url`.
   {
     "models": [
       {
-        "provider": "anthropic",
-        "id": "claude-opus-4-7",
-        "label": "Opus"
+        "provider": "fireworks",
+        "id": "accounts/fireworks/models/deepseek-v4-pro",
+        "label": "Deepseek",
+        "thinkingLevel": "high"
       },
       {
         "provider": "openai",
-        "id": "o3",
-        "label": "O3",
-        "thinkingLevel": "medium"
+        "id": "gpt-5.5",
+        "label": "GPT 5.5",
+        "thinkingLevel": "xhigh"
       }
     ],
-    "summaryModel": { "provider": "anthropic", "id": "claude-opus-4-7" },
+    "summaryModel": {
+      "provider": "fireworks",
+      "id": "accounts/fireworks/routers/kimi-k2p5-turbo",
+      "thinkingLevel": "medium"
+    },
     "summaryPrompt": "(optional extra instructions for the summary step)",
     "maxParallel": 2
   }
