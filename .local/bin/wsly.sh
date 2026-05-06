@@ -108,6 +108,12 @@ if ! command -v zsh >/dev/null 2>&1; then
   chmod +x check-ecs-exec.sh
   mv check-ecs-exec.sh ~/.local/bin
 
+  # Fireworks.ai
+  wget -O firectl.gz https://storage.googleapis.com/fireworks-public/firectl/stable/linux-amd64.gz
+  gunzip firectl.gz
+  chmod +x firectl
+  mv firectl ~/.local/bin
+
   # Github
   gh extension install https://github.com/nektos/gh-act
   echo "GitHub CLI login"
