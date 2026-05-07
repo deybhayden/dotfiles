@@ -9,9 +9,9 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
-import { SettingsManager, getAgentDir } from "@mariozechner/pi-coding-agent";
-import { Key } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { SettingsManager, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { Key } from "@earendil-works/pi-tui";
 
 export default function (pi: ExtensionAPI) {
   const settingsManager = SettingsManager.create(process.cwd(), getAgentDir());

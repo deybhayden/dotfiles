@@ -1,8 +1,8 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
-import { getKeybindings } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { getKeybindings } from "@earendil-works/pi-tui";
 
 const SELECT_LIST_ACTIONS = [
   "tui.select.up",

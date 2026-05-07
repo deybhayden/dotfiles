@@ -18,21 +18,21 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   ExtensionCommandContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import {
   BorderedLoader,
   DynamicBorder,
   getAgentDir,
   getMarkdownTheme,
-} from "@mariozechner/pi-coding-agent";
-import { complete, type UserMessage } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import { complete, type UserMessage } from "@earendil-works/pi-ai";
 import {
   Container,
   type SelectItem,
   SelectList,
   Text,
   Markdown,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {

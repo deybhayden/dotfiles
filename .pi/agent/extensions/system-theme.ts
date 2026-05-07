@@ -9,7 +9,7 @@ import {
   getAgentDir,
   type ExtensionAPI,
   type ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 const execFileAsync = promisify(execFile);
 const CHECK_INTERVAL_MS = 2000;
