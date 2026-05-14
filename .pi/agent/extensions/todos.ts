@@ -885,7 +885,7 @@ function normalizeTodoSettings(raw: Partial<TodoSettings>): TodoSettings {
     : DEFAULT_TODO_SETTINGS.gcDays;
   return {
     gc: Boolean(gc),
-    gcDays: Math.max(0, Math.floor(gcDays)),
+    gcDays: Math.max(0, Math.floor(gcDays ?? DEFAULT_TODO_SETTINGS.gcDays)),
   };
 }
 
@@ -1653,7 +1653,13 @@ export default function todosExtension(pi: ExtensionAPI) {
       "Claim tasks before working on them to avoid conflicts, and close them when complete.",
     parameters: TodoParams,
 
-    async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
+    async execute(
+      _toolCallId: string,
+      rawParams: unknown,
+      _signal: AbortSignal,
+      _onUpdate: (update: unknown) => void,
+      ctx: ExtensionContext,
+    ) {
       const params = rawParams as TodoToolInput;
       const todosDir = getTodosDir(ctx.cwd);
       const action: TodoAction = params.action;
@@ -1961,7 +1967,7 @@ export default function todosExtension(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args, theme) {
+    renderCall(args: unknown, theme: Theme) {
       const callArgs = (args ?? {}) as Partial<TodoToolInput>;
       const action = typeof callArgs.action === "string" ? callArgs.action : "";
       const id = typeof callArgs.id === "string" ? callArgs.id : "";
@@ -1978,7 +1984,14 @@ export default function todosExtension(pi: ExtensionAPI) {
       return new Text(text, 0, 0);
     },
 
-    renderResult(result, { expanded, isPartial }, theme) {
+    renderResult(
+      result: {
+        content: Array<{ type: string; text?: string }>;
+        details?: unknown;
+      },
+      { expanded, isPartial }: { expanded: boolean; isPartial: boolean },
+      theme: Theme,
+    ) {
       const details = result.details as TodoToolDetails | undefined;
       if (isPartial) {
         return new Text(theme.fg("warning", "Processing..."), 0, 0);
@@ -2358,9 +2371,9 @@ export default function todosExtension(pi: ExtensionAPI) {
         return rootComponent;
       });
 
-      if (nextPrompt) {
+      if (nextPrompt && rootTui) {
         ctx.ui.setEditorText(nextPrompt);
-        rootTui?.requestRender();
+        (rootTui as TUI).requestRender();
       }
     },
   });

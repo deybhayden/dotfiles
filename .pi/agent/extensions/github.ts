@@ -114,7 +114,11 @@ function registerGitHubTool(pi: ExtensionAPI) {
       "Review GitHub pull requests using the gh CLI. Supports actions: get_pull_request, get_diff, list_files, list_comments, create_comment (inline or general), reply_comment, approve, request_changes, comment_review. Repo is inferred from the current git worktree (gh defaults). Requires gh CLI to be installed and authenticated. Output is truncated to 2000 lines or 50KB; full output is saved to a temp file when truncated.",
     parameters: GitHubToolParams,
 
-    async execute(_toolCallId, rawParams, signal) {
+    async execute(
+      _toolCallId: string,
+      rawParams: unknown,
+      signal: AbortSignal,
+    ) {
       const params = rawParams as GitHubToolInput;
       try {
         const { prNumber } = resolveContext(params);

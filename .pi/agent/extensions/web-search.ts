@@ -1,6 +1,7 @@
 import type {
   AgentToolResult,
   ExtensionAPI,
+  Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
@@ -372,7 +373,12 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} (whichever is hit first).`,
     parameters: webSearchParameters,
 
-    async execute(_toolCallId, params: WebSearchInput, signal, onUpdate) {
+    async execute(
+      _toolCallId: string,
+      params: WebSearchInput,
+      signal: AbortSignal,
+      onUpdate: (update: unknown) => void,
+    ) {
       const query = params.query?.trim();
       if (!query) {
         return {
@@ -448,7 +454,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args: WebSearchInput, theme) {
+    renderCall(args: WebSearchInput, theme: Theme) {
       let text = theme.fg("toolTitle", theme.bold("web_search "));
       text += theme.fg("accent", `"${args.query || "..."}"`);
       if (args.freshness)
@@ -461,7 +467,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
     renderResult(
       result: AgentToolResult<BraveSearchDetails>,
       { expanded }: { expanded: boolean },
-      theme,
+      theme: Theme,
     ) {
       const details = result.details;
       if (details?.error) {
@@ -503,7 +509,11 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       "Set `includeLinks: true` to preserve hyperlinks (stripped by default to save tokens).",
     parameters: fetchUrlParameters,
 
-    async execute(_toolCallId, params: FetchUrlInput, _signal) {
+    async execute(
+      _toolCallId: string,
+      params: FetchUrlInput,
+      _signal: AbortSignal,
+    ) {
       try {
         const result = await fetchAndExtract(params.url, {
           selector: params.selector,
@@ -568,7 +578,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args: FetchUrlInput, theme) {
+    renderCall(args: FetchUrlInput, theme: Theme) {
       let text = theme.fg("toolTitle", theme.bold("fetch_url "));
       text += theme.fg("accent", args.url || "...");
       if (args.selector) text += theme.fg("muted", ` → ${args.selector}`);
@@ -578,7 +588,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
     renderResult(
       result: AgentToolResult<FetchUrlDetails>,
       { expanded }: { expanded: boolean },
-      theme,
+      theme: Theme,
     ) {
       const details = result.details;
       if (details?.error) {

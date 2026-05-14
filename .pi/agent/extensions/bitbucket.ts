@@ -152,7 +152,11 @@ function registerBitbucketTool(pi: ExtensionAPI) {
       "Review Bitbucket pull requests. Supports actions: get_pull_request, get_diff, get_diffstat, list_comments, create_comment (inline), approve, unapprove, request_changes, remove_request_changes. Workspace/repo are auto-detected from git remotes (fallback: BITBUCKET_WORKSPACE + BITBUCKET_REPO_SLUG/BITBUCKET_REPO). Auth: set BITBUCKET_ACCESS_TOKEN (Bearer) or BITBUCKET_USERNAME with BITBUCKET_API_TOKEN. Output is truncated to 2000 lines or 50KB; full output is saved to a temp file when truncated.",
     parameters: BitbucketToolParams,
 
-    async execute(_toolCallId, rawParams, signal) {
+    async execute(
+      _toolCallId: string,
+      rawParams: unknown,
+      signal: AbortSignal,
+    ) {
       const params = rawParams as BitbucketToolInput;
       try {
         const { workspace, repoSlug, pullRequestId } = resolveContext(params);
