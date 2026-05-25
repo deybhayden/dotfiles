@@ -256,7 +256,7 @@ Registers two tools: `web_search` and `fetch_url`.
     ],
     "summaryModel": {
       "provider": "fireworks",
-      "id": "accounts/fireworks/routers/kimi-k2p5-turbo",
+      "id": "accounts/fireworks/routers/kimi-k2p6-turbo",
       "thinkingLevel": "medium"
     },
     "summaryPrompt": "(optional extra instructions for the summary step)",

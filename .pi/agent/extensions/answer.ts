@@ -81,7 +81,7 @@ Example output:
 }`;
 
 const CODEX_MODEL_ID = "gpt-5.1-codex-mini";
-const KIMI_MODEL_ID = "accounts/fireworks/routers/kimi-k2p5-turbo";
+const KIMI_MODEL_ID = "accounts/fireworks/routers/kimi-k2p6-turbo";
 
 /**
  * Prefer Codex mini for extraction when available, otherwise fallback to Kimi or the current model.
