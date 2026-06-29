@@ -25,7 +25,8 @@ import {
   getAgentDir,
   getMarkdownTheme,
 } from "@earendil-works/pi-coding-agent";
-import { complete, type UserMessage } from "@earendil-works/pi-ai";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { UserMessage } from "@earendil-works/pi-ai";
 import {
   Container,
   type SelectItem,
