@@ -249,8 +249,8 @@ Registers two tools: `web_search` and `fetch_url`.
       },
       {
         "provider": "openai",
-        "id": "gpt-5.5",
-        "label": "GPT 5.5",
+        "id": "gpt-5.6",
+        "label": "GPT 5.6",
         "thinkingLevel": "xhigh"
       }
     ],

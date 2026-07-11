@@ -34,9 +34,9 @@ alias aws-sso="aws sso login --sso-session"
 alias aws-whoami="aws sts get-caller-identity"
 
 # pi
-alias pi-review="pi --offline --provider openai-codex --model gpt-5.3-codex --thinking xhigh '/review'"
-alias pi-gpt="pi --offline --provider openai-codex --model gpt-5.5 --thinking high"
+alias pi-review="pi --offline --provider openai-codex --model gpt-5.6-sol --thinking xhigh '/review'"
+alias pi-gpt="pi --offline --provider openai-codex --model gpt-5.6-terra --thinking high"
 alias pi-deepseek="pi --offline --provider fireworks --model accounts/fireworks/models/deepseek-v4-pro --thinking high"
 alias pi-kimi="pi --offline --provider fireworks --model accounts/fireworks/routers/kimi-k2p6-turbo --thinking medium"
 alias pi-gemma="pi --offline --provider llama-cpp --model ggml-org-gemma-4-26b-4b-gguf"
-alias pi-pr="pi --offline --provider openai-codex --model gpt-5.5 --thinking high -p 'create a pr for this branch'"
+alias pi-pr="pi --offline --provider openai-codex --model gpt-5.6-luna --thinking high -p 'create a pr for this branch'"

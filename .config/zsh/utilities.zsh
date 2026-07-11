@@ -90,7 +90,7 @@ function pi() {
 }
 
 function pi-bb-review() {
-  pi --offline --provider openai-codex --model gpt-5.5 --thinking xhigh "/bitbucket review $@"
+  pi --offline --provider openai-codex --model gpt-5.6-sol --thinking xhigh "/bitbucket review $@"
 }
 
 function pi-bb-respond() {
@@ -98,7 +98,7 @@ function pi-bb-respond() {
 }
 
 function pi-gh-review() {
-  pi --offline --provider openai-codex --model gpt-5.5 --thinking xhigh "/github review $@"
+  pi --offline --provider openai-codex --model gpt-5.6 --thinking xhigh "/github review $@"
 }
 
 function pi-gh-respond() {
