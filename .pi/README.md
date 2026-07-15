@@ -9,7 +9,7 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 | File                   | Commands/Tools                                                  | Summary                                                                                                                                                                                                            |
 | ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `answer.ts`            | `/answer`, `Ctrl+.`                                             | Extracts questions from the last assistant reply and opens an interactive Q&A UI to answer them. Sends a custom message with the compiled answers.                                                                 |
-| `end.ts`               | `/end`                                                          | Smart end command that detects the active child workflow and calls its internal end handler for review, security-review, simplify, or super-review sessions.                                                       |
+| `end.ts`               | `/end`                                                          | Smart end command that detects the active child workflow and calls its internal end handler for review, security-review, or simplify sessions.                                                                    |
 | `review.ts`            | `/review`                                                       | Interactive code review workflow for GitHub PRs, branches, commits, uncommitted changes, or custom instructions. Supports a fresh review branch and optional summarization when ending the review via `/end`.      |
 | `security-review.ts`   | `/security-review`                                              | Security-focused review workflow using the same target selection as `/review`, plus preflight scanning and a security rubric. Fresh-session runs return via `/end`.                                                |
 | `simplify.ts`          | `/simplify`                                                     | Interactive simplification workflow for uncommitted changes, local branch diffs, or snapshot paths. Can run in a fresh session branch and optionally summarize the simplification work when returning via `/end`.  |
@@ -19,7 +19,6 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 | `github.ts`            | `/github review`, `/github respond`, tool: `github_pr`          | GitHub PR review/responder helper that auto-checks out PRs in a git worktree and uses the `gh` CLI to fetch PR data/diffs, reply inline, and approve/request changes.                                              |
 | `web-search.ts`        | tools: `web_search`, `fetch_url`                                | Adds web search via Brave Search API and full-page content extraction via Mozilla Readability. Requires `BRAVE_API_KEY`.                                                                                           |
 | `session-breakdown.ts` | `/session-breakdown`                                            | Interactive TUI showing last 7/30/90 days of session usage—GitHub-style contribution calendar colored by model, plus per-model session count and cost table.                                                       |
-| `super-review.ts`      | `/super-review`                                                 | Runs a code review in parallel across multiple models (configured in `super-review.json`), emits individual per-model reports, then synthesizes a combined summary. Supports the same review targets as `/review`. |
 | `system-theme.ts`      | _(background)_                                                  | Polls Windows system appearance every 2 s via PowerShell and automatically switches pi between `dark` and `light` themes to match.                                                                                 |
 
 ### Extension details
@@ -34,7 +33,7 @@ Extensions add commands, tools, and behaviors to the agent. Located in `agent/ex
 
 - **Command:** `/end`
 - **Behavior:** Detects the active child workflow in the current session branch and calls its internal end handler.
-- **Supported workflows:** review, security-review, simplify, super-review
+- **Supported workflows:** review, security-review, simplify
 - **Notes:**
   - If exactly one supported child workflow is active, `/end` runs it directly.
   - If multiple workflows appear active, `/end` asks which one to finish.
@@ -222,53 +221,6 @@ Registers two tools: `web_search` and `fetch_url`.
 - **Navigation:** `←`/`→` (or `h`/`l`) to switch time ranges; `1`/`2`/`3` to jump directly; `q` or `Esc` to close.
 - **Non-interactive mode:** Falls back to printing a plain-text 30-day summary.
 - **Notes:** No API calls are made; all data is parsed locally from session JSONL files.
-
-#### super-review.ts
-
-- **Commands:** `/super-review`
-- **Purpose:** Runs the same review prompt against multiple LLM models in parallel, emits an individual report per model, then generates a combined summary.
-- **Review targets** (same syntax as `/review`):
-  - `/super-review` — interactive selector
-  - `/super-review uncommitted`
-  - `/super-review branch <name>`
-  - `/super-review commit <sha>`
-  - `/super-review pr <number|url>` (requires `gh` CLI)
-  - `/super-review folder <paths…>`
-  - `/super-review custom "instructions"`
-- **Config:** Reads `super-review.json` from the project's `.pi/` directory first, then from `~/.pi/agent/`. If neither exists, offers to create one via an in-TUI editor.
-- **Config schema (`super-review.json`):**
-
-  ```json
-  {
-    "models": [
-      {
-        "provider": "fireworks",
-        "id": "accounts/fireworks/models/deepseek-v4-pro",
-        "label": "Deepseek",
-        "thinkingLevel": "high"
-      },
-      {
-        "provider": "openai",
-        "id": "gpt-5.6",
-        "label": "GPT 5.6",
-        "thinkingLevel": "xhigh"
-      }
-    ],
-    "summaryModel": {
-      "provider": "fireworks",
-      "id": "accounts/fireworks/routers/kimi-k2p6-turbo",
-      "thinkingLevel": "medium"
-    },
-    "summaryPrompt": "(optional extra instructions for the summary step)",
-    "maxParallel": 2
-  }
-  ```
-
-  - `thinkingLevel` — one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`
-  - `maxParallel` — concurrency cap (defaults to all models in parallel)
-
-- **Session branching:** Like `/review`, creates a fresh session branch so the multi-model review stays isolated. Use `/end` to return to the origin session (with an optional summary).
-- **Requirements:** `pi` CLI must be on `PATH`; `gh` CLI required for PR checkout.
 
 #### system-theme.ts
 
