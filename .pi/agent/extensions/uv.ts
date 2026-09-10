@@ -37,5 +37,5 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.notify("UV interceptor loaded", "info");
   });
 
-  pi.registerTool(bashTool as any);
+  pi.registerTool(bashTool);
 }

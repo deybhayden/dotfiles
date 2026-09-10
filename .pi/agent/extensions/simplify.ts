@@ -42,7 +42,6 @@ import {
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
-import { registerReloadableEventBusListener } from "./_shared/reloadable-event-bus.js";
 import {
   COLLECT_END_TARGETS_EVENT,
   type CollectEndTargetsEvent,
@@ -665,7 +664,7 @@ async function runEndSimplify(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
 ): Promise<void> {
-  if (!ctx.hasUI) {
+  if (ctx.mode !== "tui") {
     ctx.ui.notify("/end requires interactive mode", "error");
     return;
   }
@@ -801,7 +800,7 @@ export default function simplifyExtension(pi: ExtensionAPI) {
     description:
       "Simplify code for uncommitted changes, a local branch diff, or a snapshot of folders/files",
     handler: async (args, ctx) => {
-      if (!ctx.hasUI) {
+      if (ctx.mode !== "tui") {
         ctx.ui.notify("Simplify requires interactive mode", "error");
         return;
       }
@@ -863,21 +862,16 @@ export default function simplifyExtension(pi: ExtensionAPI) {
     },
   });
 
-  registerReloadableEventBusListener(
-    pi,
-    "simplify:collect-end-targets",
-    COLLECT_END_TARGETS_EVENT,
-    (event) => {
-      const { ctx, targets } = event as CollectEndTargetsEvent;
-      if (!getSimplifyState(ctx)?.active) {
-        return;
-      }
+  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
+    const { ctx, targets } = event as CollectEndTargetsEvent;
+    if (!getSimplifyState(ctx)?.active) {
+      return;
+    }
 
-      targets.push({
-        key: "simplify",
-        label: "Simplify",
-        run: () => runEndSimplify(pi, ctx),
-      });
-    },
-  );
+    targets.push({
+      key: "simplify",
+      label: "Simplify",
+      run: () => runEndSimplify(pi, ctx),
+    });
+  });
 }

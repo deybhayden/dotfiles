@@ -47,7 +47,6 @@ import {
   parseReviewPathsInput,
   tokenizeSpaceSeparated,
 } from "./_shared/review-utils.js";
-import { registerReloadableEventBusListener } from "./_shared/reloadable-event-bus.js";
 import {
   BASE_BRANCH_PROMPT_FALLBACK as SHARED_BASE_BRANCH_PROMPT_FALLBACK,
   BASE_BRANCH_PROMPT_WITH_MERGE_BASE as SHARED_BASE_BRANCH_PROMPT_WITH_MERGE_BASE,
@@ -1230,7 +1229,7 @@ export default function reviewExtension(pi: ExtensionAPI) {
     description:
       "Review code changes (PR, uncommitted, branch, commit, folder, or custom)",
     handler: async (args, ctx) => {
-      if (!ctx.hasUI) {
+      if (ctx.mode !== "tui") {
         ctx.ui.notify("Review requires interactive mode", "error");
         return;
       }
@@ -1393,7 +1392,7 @@ Instructions:
   }
 
   async function runEndReview(ctx: ExtensionCommandContext): Promise<void> {
-    if (!ctx.hasUI) {
+    if (ctx.mode !== "tui") {
       ctx.ui.notify("/end requires interactive mode", "error");
       return;
     }
@@ -1535,21 +1534,16 @@ Instructions:
     }
   }
 
-  registerReloadableEventBusListener(
-    pi,
-    "review:collect-end-targets",
-    COLLECT_END_TARGETS_EVENT,
-    (event) => {
-      const { ctx, targets } = event as CollectEndTargetsEvent;
-      if (!getReviewState(ctx)?.active) {
-        return;
-      }
+  pi.events.on(COLLECT_END_TARGETS_EVENT, (event) => {
+    const { ctx, targets } = event as CollectEndTargetsEvent;
+    if (!getReviewState(ctx)?.active) {
+      return;
+    }
 
-      targets.push({
-        key: "review",
-        label: "Review",
-        run: () => runEndReview(ctx),
-      });
-    },
-  );
+    targets.push({
+      key: "review",
+      label: "Review",
+      run: () => runEndReview(ctx),
+    });
+  });
 }

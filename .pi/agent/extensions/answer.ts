@@ -10,7 +10,7 @@
  * 4. Submits the compiled answers when done
  */
 
-import { complete } from "@earendil-works/pi-ai/compat";
+import { uuidv7 } from "@earendil-works/pi-ai";
 import type { Model, Api, UserMessage } from "@earendil-works/pi-ai";
 import type {
   ExtensionAPI,
@@ -447,7 +447,7 @@ class QnAComponent implements Component {
 
 export default function (pi: ExtensionAPI) {
   const answerHandler = async (ctx: ExtensionContext) => {
-    if (!ctx.hasUI) {
+    if (ctx.mode !== "tui") {
       ctx.ui.notify("answer requires interactive mode", "error");
       return;
     }
@@ -491,7 +491,7 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    // Select the best model for extraction (prefer Codex mini, then haiku)
+    // Select the best model for extraction (prefer Codex mini, then Kimi)
     const extractionModel = selectExtractionModel(ctx.model, ctx.modelRegistry);
 
     // Run extraction with loader UI
@@ -505,26 +505,19 @@ export default function (pi: ExtensionAPI) {
         loader.onAbort = () => done(null);
 
         const doExtract = async () => {
-          const auth =
-            await ctx.modelRegistry.getApiKeyAndHeaders(extractionModel);
-          if (!auth.ok) {
-            const message = "error" in auth ? auth.error : "Auth unavailable";
-            throw new Error(message);
-          }
-
           const userMessage: UserMessage = {
             role: "user",
             content: [{ type: "text", text: lastAssistantText! }],
             timestamp: Date.now(),
           };
 
-          const response = await complete(
+          const response = await ctx.modelRegistry.complete(
             extractionModel,
             { systemPrompt: SYSTEM_PROMPT, messages: [userMessage] },
             {
-              apiKey: auth.apiKey,
-              headers: auth.headers,
               signal: loader.signal,
+              cacheRetention: "none",
+              sessionId: uuidv7(),
             },
           );
 

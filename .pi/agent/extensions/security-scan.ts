@@ -315,7 +315,7 @@ async function scanSemgrep(
     return { findings: [] };
   }
 
-  const { stdout, stderr, code } = await pi.exec("semgrep", [
+  const { stdout, code } = await pi.exec("semgrep", [
     "--json",
     "--config",
     "p/secrets",

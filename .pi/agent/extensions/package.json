@@ -4,13 +4,22 @@
   "scripts": {
     "link-pi-deps": "node ./scripts/link-pi-deps.mjs",
     "postinstall": "node ./scripts/link-pi-deps.mjs",
+    "pretypecheck": "npm run link-pi-deps",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,md,yml,yaml}\""
+    "lint": "eslint . --max-warnings 0",
+    "pretest": "npm run link-pi-deps",
+    "test": "node --test scripts/*.test.mjs",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,json,md,yml,yaml}\""
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.3.0",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
     "prettier": "^3.5.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.70.0"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

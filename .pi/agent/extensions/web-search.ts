@@ -2,6 +2,7 @@ import type {
   AgentToolResult,
   ExtensionAPI,
   Theme,
+  ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
@@ -83,7 +84,7 @@ const webSearchParameters = Type.Object({
         "Two-letter country code for localized results (e.g., US, GB, DE).",
     }),
   ),
-}) as any;
+});
 
 interface WebSearchInput {
   query: string;
@@ -120,7 +121,8 @@ const fetchUrlParameters = Type.Object({
     }),
   ),
   maxLength: Type.Optional(
-    Type.Number({
+    Type.Integer({
+      minimum: 1,
       description: "Max characters to return. Default: 15000",
     }),
   ),
@@ -129,7 +131,7 @@ const fetchUrlParameters = Type.Object({
       description: "Keep hyperlinks in output. Default: false (saves tokens)",
     }),
   ),
-}) as any;
+});
 
 interface FetchUrlInput {
   url: string;
@@ -180,10 +182,11 @@ async function braveSearch(
   if (opts.freshness) params.set("freshness", opts.freshness);
   if (opts.country) params.set("country", opts.country);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const abortHandler = () => controller.abort();
-  signal?.addEventListener("abort", abortHandler, { once: true });
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const requestSignal = signal
+    ? AbortSignal.any([signal, timeoutSignal])
+    : timeoutSignal;
+  requestSignal.throwIfAborted();
 
   try {
     const response = await fetch(`${BRAVE_API_BASE}?${params}`, {
@@ -192,7 +195,7 @@ async function braveSearch(
         "Accept-Encoding": "gzip",
         "X-Subscription-Token": apiKey,
       },
-      signal: controller.signal,
+      signal: requestSignal,
     });
 
     if (!response.ok) {
@@ -215,15 +218,13 @@ async function braveSearch(
 
     return results;
   } catch (error) {
-    if (controller.signal.aborted && !signal?.aborted) {
+    if (timeoutSignal.aborted && !signal?.aborted) {
       throw new Error(
         `Request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`,
+        { cause: error },
       );
     }
     throw error;
-  } finally {
-    clearTimeout(timeoutId);
-    signal?.removeEventListener("abort", abortHandler);
   }
 }
 
@@ -232,26 +233,24 @@ async function braveSearch(
 async function fetchAndExtract(
   url: string,
   opts: { selector?: string; maxLength?: number; includeLinks?: boolean },
+  signal?: AbortSignal,
 ): Promise<FetchResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  const requestSignal = signal
+    ? AbortSignal.any([signal, timeoutSignal])
+    : timeoutSignal;
+  requestSignal.throwIfAborted();
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      redirect: "follow",
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response = await fetch(url, {
+    signal: requestSignal,
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    redirect: "follow",
+  });
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -363,7 +362,10 @@ function formatSearchResults(
 export default function webSearchExtension(pi: ExtensionAPI) {
   // ── Tool 1: web_search (Brave) ─────────────────────────────────
 
-  const webSearchTool: any = {
+  const webSearchTool: ToolDefinition<
+    typeof webSearchParameters,
+    BraveSearchDetails
+  > = {
     name: "web_search",
     label: "Web Search",
     description:
@@ -373,26 +375,15 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       `Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} (whichever is hit first).`,
     parameters: webSearchParameters,
 
-    async execute(
-      _toolCallId: string,
-      params: WebSearchInput,
-      signal: AbortSignal,
-      onUpdate: (update: unknown) => void,
-    ) {
+    async execute(_toolCallId, params, signal, onUpdate) {
       const query = params.query?.trim();
       if (!query) {
-        return {
-          content: [{ type: "text", text: "Error: query is required." }],
-          details: {
-            error: "query is required",
-          } satisfies Partial<BraveSearchDetails>,
-          isError: true,
-        };
+        throw new Error("query is required");
       }
 
       onUpdate?.({
         content: [{ type: "text", text: `Searching Brave for "${query}"...` }],
-        details: {},
+        details: { query, provider: "brave", count: 0, results: [], urls: [] },
       });
 
       try {
@@ -439,18 +430,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
         return { content: [{ type: "text", text: outputText }], details };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{ type: "text", text: `Web search failed: ${message}` }],
-          details: {
-            query,
-            provider: "brave",
-            count: 0,
-            results: [],
-            urls: [],
-            error: message,
-          } satisfies BraveSearchDetails,
-          isError: true,
-        };
+        throw new Error(`Web search failed: ${message}`, { cause: error });
       }
     },
 
@@ -464,14 +444,26 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       return new Text(text, 0, 0);
     },
 
-    renderResult(
-      result: AgentToolResult<BraveSearchDetails>,
-      { expanded }: { expanded: boolean },
-      theme: Theme,
-    ) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
       const details = result.details;
-      if (details?.error) {
-        return new Text(theme.fg("error", `✗ ${details.error}`), 0, 0);
+      if (context.isError || details?.error) {
+        return new Text(
+          theme.fg(
+            "error",
+            details?.error ??
+              getFirstTextContent(result) ??
+              "Web search failed",
+          ),
+          0,
+          0,
+        );
+      }
+      if (isPartial) {
+        return new Text(
+          theme.fg("muted", getFirstTextContent(result) ?? "Searching..."),
+          0,
+          0,
+        );
       }
 
       let text = theme.fg("success", "✓ ");
@@ -498,7 +490,10 @@ export default function webSearchExtension(pi: ExtensionAPI) {
 
   // ── Tool 2: fetch_url ──────────────────────────────────────────
 
-  const fetchUrlTool: any = {
+  const fetchUrlTool: ToolDefinition<
+    typeof fetchUrlParameters,
+    FetchUrlDetails
+  > = {
     name: "fetch_url",
     label: "Fetch URL",
     description:
@@ -509,17 +504,17 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       "Set `includeLinks: true` to preserve hyperlinks (stripped by default to save tokens).",
     parameters: fetchUrlParameters,
 
-    async execute(
-      _toolCallId: string,
-      params: FetchUrlInput,
-      _signal: AbortSignal,
-    ) {
+    async execute(_toolCallId, params, signal) {
       try {
-        const result = await fetchAndExtract(params.url, {
-          selector: params.selector,
-          maxLength: params.maxLength,
-          includeLinks: params.includeLinks,
-        });
+        const result = await fetchAndExtract(
+          params.url,
+          {
+            selector: params.selector,
+            maxLength: params.maxLength,
+            includeLinks: params.includeLinks,
+          },
+          signal,
+        );
 
         const header = [
           result.title && `# ${result.title}`,
@@ -561,20 +556,9 @@ export default function webSearchExtension(pi: ExtensionAPI) {
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        const details: FetchUrlDetails = {
-          url: params.url,
-          error: message,
-        };
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to fetch ${params.url}: ${message}`,
-            },
-          ],
-          details,
-          isError: true,
-        };
+        throw new Error(`Failed to fetch ${params.url}: ${message}`, {
+          cause: err,
+        });
       }
     },
 
@@ -585,14 +569,20 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       return new Text(text, 0, 0);
     },
 
-    renderResult(
-      result: AgentToolResult<FetchUrlDetails>,
-      { expanded }: { expanded: boolean },
-      theme: Theme,
-    ) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
       const details = result.details;
-      if (details?.error) {
-        return new Text(theme.fg("error", `✗ ${details.error}`), 0, 0);
+      if (context.isError || details?.error) {
+        return new Text(
+          theme.fg(
+            "error",
+            details?.error ?? getFirstTextContent(result) ?? "Fetch failed",
+          ),
+          0,
+          0,
+        );
+      }
+      if (isPartial) {
+        return new Text(theme.fg("muted", "Fetching..."), 0, 0);
       }
 
       let text = theme.fg("success", "✓ ");

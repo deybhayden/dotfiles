@@ -35,10 +35,12 @@ import {
   getMarkdownTheme,
   keyHint,
   rawKeyHint,
+  withFileMutationQueue,
   type ExtensionAPI,
   type ExtensionContext,
   type KeybindingsManager,
   type Theme,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
@@ -110,7 +112,7 @@ const TodoParams = Type.Object({
     "delete",
     "claim",
     "release",
-  ] as const) as any,
+  ] as const),
   id: Type.Optional(
     Type.String({ description: "Todo id (TODO-<hex> or raw hex filename)" }),
   ),
@@ -128,7 +130,7 @@ const TodoParams = Type.Object({
   force: Type.Optional(
     Type.Boolean({ description: "Override another session's assignment" }),
   ),
-}) as any;
+});
 
 type TodoAction =
   | "list"
@@ -169,20 +171,13 @@ type TodoToolDetails =
       action: "list" | "list-all";
       todos: TodoFrontMatter[];
       currentSessionId?: string;
-      error?: string;
     }
   | {
       action:
-        | "get"
-        | "create"
-        | "update"
-        | "append"
-        | "delete"
-        | "claim"
-        | "release";
+        "get" | "create" | "update" | "append" | "delete" | "claim" | "release";
       todo: TodoRecord;
-      error?: string;
-    };
+    }
+  | { action: TodoAction; error: string };
 
 function formatTodoId(id: string): string {
   return `${TODO_ID_PREFIX}${id}`;
@@ -891,7 +886,7 @@ function normalizeTodoSettings(raw: Partial<TodoSettings>): TodoSettings {
 
 async function readTodoSettings(todosDir: string): Promise<TodoSettings> {
   const settingsPath = getTodoSettingsPath(todosDir);
-  let data: Partial<TodoSettings> = {};
+  let data: Partial<TodoSettings>;
 
   try {
     const raw = await fs.readFile(settingsPath, "utf8");
@@ -909,7 +904,7 @@ async function garbageCollectTodos(
 ): Promise<void> {
   if (!settings.gc) return;
 
-  let entries: string[] = [];
+  let entries: string[];
   try {
     entries = await fs.readdir(todosDir);
   } catch {
@@ -1189,17 +1184,20 @@ async function withTodoLock<T>(
   ctx: ExtensionContext,
   fn: () => Promise<T>,
 ): Promise<T | { error: string }> {
-  const lock = await acquireLock(todosDir, id, ctx);
-  if (typeof lock === "object" && "error" in lock) return lock;
-  try {
-    return await fn();
-  } finally {
-    await lock();
-  }
+  // Coordinate with pi's parallel edit/write tools as well as other sessions.
+  return withFileMutationQueue(getTodoPath(todosDir, id), async () => {
+    const lock = await acquireLock(todosDir, id, ctx);
+    if (typeof lock === "object" && "error" in lock) return lock;
+    try {
+      return await fn();
+    } finally {
+      await lock();
+    }
+  });
 }
 
 async function listTodos(todosDir: string): Promise<TodoFrontMatter[]> {
-  let entries: string[] = [];
+  let entries: string[];
   try {
     entries = await fs.readdir(todosDir);
   } catch {
@@ -1232,7 +1230,7 @@ async function listTodos(todosDir: string): Promise<TodoFrontMatter[]> {
 }
 
 function listTodosSync(todosDir: string): TodoFrontMatter[] {
-  let entries: string[] = [];
+  let entries: string[];
   try {
     entries = readdirSync(todosDir);
   } catch {
@@ -1643,7 +1641,7 @@ export default function todosExtension(pi: ExtensionAPI) {
 
   const todosDirLabel = getTodosDirLabel(process.cwd());
 
-  const todoTool: any = {
+  const todoTool: ToolDefinition<typeof TodoParams, TodoToolDetails> = {
     name: "todo",
     label: "Todo",
     description:
@@ -1653,14 +1651,7 @@ export default function todosExtension(pi: ExtensionAPI) {
       "Claim tasks before working on them to avoid conflicts, and close them when complete.",
     parameters: TodoParams,
 
-    async execute(
-      _toolCallId: string,
-      rawParams: unknown,
-      _signal: AbortSignal,
-      _onUpdate: (update: unknown) => void,
-      ctx: ExtensionContext,
-    ) {
-      const params = rawParams as TodoToolInput;
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const todosDir = getTodosDir(ctx.cwd);
       const action: TodoAction = params.action;
 
@@ -2001,7 +1992,7 @@ export default function todosExtension(pi: ExtensionAPI) {
         return new Text(text?.type === "text" ? text.text : "", 0, 0);
       }
 
-      if (details.error) {
+      if ("error" in details) {
         return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
       }
 
@@ -2056,7 +2047,15 @@ export default function todosExtension(pi: ExtensionAPI) {
     },
   };
 
-  pi.registerTool(todoTool);
+  pi.registerTool({
+    ...todoTool,
+    async execute(...args) {
+      args[2]?.throwIfAborted();
+      const result = await todoTool.execute(...args);
+      if ("error" in result.details) throw new Error(result.details.error);
+      return result;
+    },
+  });
 
   pi.registerCommand("todos", {
     description: "List todos from .pi/todos",
@@ -2081,9 +2080,10 @@ export default function todosExtension(pi: ExtensionAPI) {
       const currentSessionId = ctx.sessionManager.getSessionId();
       const searchTerm = (args ?? "").trim();
 
-      if (!ctx.hasUI) {
+      if (ctx.mode !== "tui") {
         const text = formatTodoList(todos);
-        console.log(text);
+        if (ctx.hasUI) ctx.ui.notify(text, "info");
+        else console.log(text);
         return;
       }
 

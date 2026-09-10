@@ -3,13 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "typeRoots": [
-      "types"
-    ],
+    "typeRoots": ["types"],
     "skipLibCheck": true,
     "strict": true
   },
-  "include": [
-    "**/*.ts"
-  ]
+  "include": ["**/*.ts"]
 }

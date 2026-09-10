@@ -132,10 +132,6 @@ function weightedMix(colors: Array<{ color: RGB; weight: number }>): RGB {
   };
 }
 
-function ansiBg(rgb: RGB, text: string): string {
-  return `\x1b[48;2;${rgb.r};${rgb.g};${rgb.b}m${text}\x1b[0m`;
-}
-
 function ansiFg(rgb: RGB, text: string): string {
   return `\x1b[38;2;${rgb.r};${rgb.g};${rgb.b}m${text}\x1b[0m`;
 }
@@ -254,7 +250,7 @@ async function walkSessionFiles(
   while (stack.length) {
     if (signal?.aborted) break;
     const dir = stack.pop()!;
-    let entries: Dirent[] = [];
+    let entries: Dirent[];
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
@@ -579,44 +575,6 @@ function renderLegendItems(
   return items;
 }
 
-function fitRight(text: string, width: number): string {
-  if (width <= 0) return "";
-  let w = visibleWidth(text);
-  let t = text;
-  if (w > width) {
-    t = truncateToWidth(t, width);
-    w = visibleWidth(t);
-  }
-  return " ".repeat(Math.max(0, width - w)) + t;
-}
-
-function renderLegendBlock(
-  leftLabel: string,
-  items: string[],
-  width: number,
-): string[] {
-  if (width <= 0) return [];
-  if (items.length === 0) return [truncateToWidth(leftLabel, width)];
-
-  const lines: string[] = [];
-  // First line: label on left, first item right-aligned into remaining space.
-  const leftW = visibleWidth(leftLabel);
-  if (leftW >= width) {
-    lines.push(truncateToWidth(leftLabel, width));
-    // Put all items on their own lines right-aligned.
-    for (const it of items) lines.push(fitRight(it, width));
-    return lines;
-  }
-
-  const remaining = Math.max(0, width - leftW);
-  lines.push(leftLabel + fitRight(items[0], remaining));
-
-  for (let i = 1; i < items.length; i++) {
-    lines.push(fitRight(items[i], width));
-  }
-  return lines;
-}
-
 function renderModelTable(range: RangeAgg, maxRows = 8): string[] {
   // Prefer cost sorting if any cost exists, else sessions.
   const totalCost = range.totalCost;
@@ -654,21 +612,6 @@ function renderModelTable(range: RangeAgg, maxRows = 8): string[] {
   }
 
   return lines;
-}
-
-function renderLeftRight(left: string, right: string, width: number): string {
-  const leftW = visibleWidth(left);
-  if (width <= 0) return "";
-  if (leftW >= width) return truncateToWidth(left, width);
-
-  const remaining = width - leftW;
-  let rightText = right;
-  const rightW = visibleWidth(rightText);
-  if (rightW > remaining) {
-    rightText = truncateToWidth(rightText, remaining);
-  }
-  const pad = Math.max(0, remaining - visibleWidth(rightText));
-  return left + " ".repeat(pad) + rightText;
 }
 
 function rangeSummary(range: RangeAgg, days: number): string {
@@ -930,7 +873,7 @@ export default function sessionBreakdownExtension(pi: ExtensionAPI) {
     description:
       "Interactive breakdown of last 7/30/90 days of ~/.pi session usage (sessions + cost by model)",
     handler: async (_args, ctx: ExtensionContext) => {
-      if (!ctx.hasUI) {
+      if (ctx.mode !== "tui") {
         // Non-interactive fallback: just notify.
         const data = await computeBreakdown(undefined);
         const range = data.ranges.get(30)!;

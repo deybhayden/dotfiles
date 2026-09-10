@@ -12,14 +12,11 @@
  * The generated prompt appears as a draft in the editor for review/editing.
  */
 
-import { complete } from "@earendil-works/pi-ai/compat";
-import type { Message } from "@earendil-works/pi-ai";
-import type {
-  ExtensionAPI,
-  SessionEntry,
-} from "@earendil-works/pi-coding-agent";
+import { uuidv7, type Message } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   BorderedLoader,
+  buildSessionContext,
   convertToLlm,
   serializeConversation,
 } from "@earendil-works/pi-coding-agent";
@@ -50,7 +47,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("handoff", {
     description: "Transfer context to a new focused session",
     handler: async (args, ctx) => {
-      if (!ctx.hasUI) {
+      if (ctx.mode !== "tui") {
         ctx.ui.notify("handoff requires interactive mode", "error");
         return;
       }
@@ -66,14 +63,9 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      // Gather conversation context from current branch
-      const branch = ctx.sessionManager.getBranch();
-      const messages = branch
-        .filter(
-          (entry): entry is SessionEntry & { type: "message" } =>
-            entry.type === "message",
-        )
-        .map((entry) => entry.message);
+      // Let pi apply compaction and include branch summaries and extension
+      // messages, rather than serializing the entire uncompacted history.
+      const { messages } = buildSessionContext(ctx.sessionManager.getBranch());
 
       if (messages.length === 0) {
         ctx.ui.notify("No conversation to hand off", "error");
@@ -96,14 +88,6 @@ export default function (pi: ExtensionAPI) {
           loader.onAbort = () => done(null);
 
           const doGenerate = async () => {
-            const auth = await ctx.modelRegistry.getApiKeyAndHeaders(
-              ctx.model!,
-            );
-            if (!auth.ok) {
-              const message = "error" in auth ? auth.error : "Auth unavailable";
-              throw new Error(message);
-            }
-
             const userMessage: Message = {
               role: "user",
               content: [
@@ -115,13 +99,13 @@ export default function (pi: ExtensionAPI) {
               timestamp: Date.now(),
             };
 
-            const response = await complete(
+            const response = await ctx.modelRegistry.complete(
               ctx.model!,
               { systemPrompt: SYSTEM_PROMPT, messages: [userMessage] },
               {
-                apiKey: auth.apiKey,
-                headers: auth.headers,
                 signal: loader.signal,
+                cacheRetention: "none",
+                sessionId: uuidv7(),
               },
             );
 
@@ -164,16 +148,16 @@ export default function (pi: ExtensionAPI) {
       // Create new session with parent tracking
       const newSessionResult = await ctx.newSession({
         parentSession: currentSessionFile,
+        withSession: async (replacementCtx) => {
+          replacementCtx.ui.setEditorText(editedPrompt);
+          replacementCtx.ui.notify("Handoff ready. Submit when ready.", "info");
+        },
       });
 
       if (newSessionResult.cancelled) {
         ctx.ui.notify("New session cancelled", "info");
         return;
       }
-
-      // Set the edited prompt in the main editor for submission
-      ctx.ui.setEditorText(editedPrompt);
-      ctx.ui.notify("Handoff ready. Submit when ready.", "info");
     },
   });
 }

@@ -272,6 +272,11 @@ async function openReplyPicker(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
 ): Promise<void> {
+  if (ctx.mode !== "tui") {
+    ctx.ui.notify("open-reply requires interactive mode", "error");
+    return;
+  }
+
   const replies = getAssistantReplies(ctx);
 
   if (replies.length === 0) {

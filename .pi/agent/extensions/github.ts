@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -36,10 +39,10 @@ const CommentSchema = Type.Object({
     }),
   ),
   side: Type.Optional(
-    StringEnum(["LEFT", "RIGHT"], {
+    StringEnum(["LEFT", "RIGHT"] as const, {
       description:
         "Which side of the diff to comment on. LEFT for deletions, RIGHT for additions. Defaults to RIGHT.",
-    }) as any,
+    }),
   ),
   start_line: Type.Optional(
     Type.Integer({ description: "Start line for multi-line inline comments." }),
@@ -52,7 +55,7 @@ const CommentSchema = Type.Object({
 });
 
 const GitHubToolParams = Type.Object({
-  action: StringEnum(Actions) as any,
+  action: StringEnum(Actions),
   pull_request_number: Type.Integer({ description: "Pull request number." }),
   comment: Type.Optional(CommentSchema),
   review_body: Type.Optional(
@@ -61,9 +64,8 @@ const GitHubToolParams = Type.Object({
         "Body text for the review (used with approve, request_changes, comment_review).",
     }),
   ),
-}) as any;
+});
 
-// Define types explicitly to avoid TypeBox Static<> issues
 type GitHubAction = (typeof Actions)[number];
 type DiffSide = "LEFT" | "RIGHT";
 
@@ -107,19 +109,14 @@ export default function (pi: ExtensionAPI) {
 }
 
 function registerGitHubTool(pi: ExtensionAPI) {
-  const tool: any = {
+  const tool: ToolDefinition<typeof GitHubToolParams> = {
     name: "github_pr",
     label: "GitHub PR",
     description:
       "Review GitHub pull requests using the gh CLI. Supports actions: get_pull_request, get_diff, list_files, list_comments, create_comment (inline or general), reply_comment, approve, request_changes, comment_review. Repo is inferred from the current git worktree (gh defaults). Requires gh CLI to be installed and authenticated. Output is truncated to 2000 lines or 50KB; full output is saved to a temp file when truncated.",
     parameters: GitHubToolParams,
 
-    async execute(
-      _toolCallId: string,
-      rawParams: unknown,
-      signal: AbortSignal,
-    ) {
-      const params = rawParams as GitHubToolInput;
+    async execute(_toolCallId, params, signal) {
       try {
         const { prNumber } = resolveContext(params);
         const action = params.action as GitHubAction;
@@ -196,21 +193,7 @@ function registerGitHubTool(pi: ExtensionAPI) {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        const details: Record<string, unknown> = { error: message };
-        if (error instanceof GitHubError) {
-          details.exitCode = error.exitCode;
-          details.stderr = error.stderr;
-        }
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `GitHub request failed: ${message}`,
-            },
-          ],
-          details,
-          isError: true,
-        };
+        throw new Error(`GitHub request failed: ${message}`, { cause: error });
       }
     },
   };
@@ -448,6 +431,7 @@ function runGit(args: string[], cwd?: string): string {
     const details = stderr || stdout || error.message;
     throw new Error(
       `git ${args.join(" ")} failed${details ? `: ${details}` : ""}`,
+      { cause: error },
     );
   }
 }

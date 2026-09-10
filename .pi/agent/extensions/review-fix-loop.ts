@@ -1156,7 +1156,7 @@ export default function reviewFixLoopExtension(pi: ExtensionAPI) {
     description:
       "Review → fix → re-review loop until approved (or max iterations)",
     handler: async (args, ctx) => {
-      if (!ctx.hasUI) {
+      if (ctx.mode !== "tui") {
         ctx.ui.notify("review-fix-loop requires interactive mode", "error");
         return;
       }

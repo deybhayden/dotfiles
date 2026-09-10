@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -51,23 +54,22 @@ const CommentSchema = Type.Object({
       description: "Line number (1-based) to anchor the comment.",
     }),
   ),
-  line_type: Type.Optional(StringEnum(LineTypes) as any),
+  line_type: Type.Optional(StringEnum(LineTypes)),
   start_line: Type.Optional(
     Type.Integer({ description: "Start line for multi-line inline comments." }),
   ),
-  start_line_type: Type.Optional(StringEnum(LineTypes) as any),
+  start_line_type: Type.Optional(StringEnum(LineTypes)),
   parent_id: Type.Optional(
     Type.Integer({ description: "Parent comment id to reply to." }),
   ),
 });
 
 const BitbucketToolParams = Type.Object({
-  action: StringEnum(Actions) as any,
+  action: StringEnum(Actions),
   pull_request_id: Type.Integer({ description: "Pull request id." }),
   comment: Type.Optional(CommentSchema),
-}) as any;
+});
 
-// Define types explicitly to avoid TypeBox Static<> issues
 type BitbucketAction = (typeof Actions)[number];
 type LineType = "to" | "from";
 
@@ -145,19 +147,14 @@ export default function (pi: ExtensionAPI) {
 }
 
 function registerBitbucketTool(pi: ExtensionAPI) {
-  const tool: any = {
+  const tool: ToolDefinition<typeof BitbucketToolParams> = {
     name: "bitbucket_pr",
     label: "Bitbucket PR",
     description:
       "Review Bitbucket pull requests. Supports actions: get_pull_request, get_diff, get_diffstat, list_comments, create_comment (inline), approve, unapprove, request_changes, remove_request_changes. Workspace/repo are auto-detected from git remotes (fallback: BITBUCKET_WORKSPACE + BITBUCKET_REPO_SLUG/BITBUCKET_REPO). Auth: set BITBUCKET_ACCESS_TOKEN (Bearer) or BITBUCKET_USERNAME with BITBUCKET_API_TOKEN. Output is truncated to 2000 lines or 50KB; full output is saved to a temp file when truncated.",
     parameters: BitbucketToolParams,
 
-    async execute(
-      _toolCallId: string,
-      rawParams: unknown,
-      signal: AbortSignal,
-    ) {
-      const params = rawParams as BitbucketToolInput;
+    async execute(_toolCallId, params, signal) {
       try {
         const { workspace, repoSlug, pullRequestId } = resolveContext(params);
         const action = params.action as BitbucketAction;
@@ -251,40 +248,18 @@ function registerBitbucketTool(pi: ExtensionAPI) {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        const details: Record<string, unknown> = { error: message };
-        let detailMessage: string | undefined;
-
-        if (error instanceof BitbucketError) {
-          details.status = error.status;
-          details.details = error.details;
-          details.raw_body = error.raw;
-          details.url = error.url;
-          const fields =
-            (error.details as any)?.error?.fields ??
-            (error.details as any)?.fields;
-          if (fields) {
-            details.fields = fields;
-          }
-          detailMessage = extractErrorMessage(error.details);
-          if (detailMessage) {
-            details.error_detail = detailMessage;
-          }
-        }
+        const detailMessage =
+          error instanceof BitbucketError
+            ? extractErrorMessage(error.details)
+            : undefined;
 
         const summary = detailMessage
           ? `${message}: ${detailMessage}`
           : message;
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Bitbucket request failed: ${summary}`,
-            },
-          ],
-          details,
-          isError: true,
-        };
+        throw new Error(`Bitbucket request failed: ${summary}`, {
+          cause: error,
+        });
       }
     },
   };
@@ -456,7 +431,6 @@ async function testCredentials(
 function saveCredentials(credentials: StoredCredentials): void {
   const dir = join(homedir(), ".pi");
   if (!existsSync(dir)) {
-    const { mkdirSync } = require("node:fs");
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2), {
@@ -730,6 +704,7 @@ function runGit(args: string[], cwd?: string): string {
     const details = stderr || stdout || error.message;
     throw new Error(
       `git ${args.join(" ")} failed${details ? `: ${details}` : ""}`,
+      { cause: error },
     );
   }
 }
