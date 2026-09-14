@@ -85,8 +85,9 @@ if ! command -v zsh >/dev/null 2>&1; then
 
   # Python
   echo "Installing uv tools"
-  uv tool install ruff 
   uv tool install pre-commit
+  uv tool install ruff
+  uv tool install semgrep
 
   # Node
   echo "Installing node tools"
