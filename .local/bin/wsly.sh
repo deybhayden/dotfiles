@@ -91,7 +91,8 @@ if ! command -v zsh >/dev/null 2>&1; then
 
   # Node
   echo "Installing node tools"
-  npm install -g @earendil-works/pi-coding-agent agent-browser npm-check-updates
+  npm install -g agent-browser npm-check-updates
+  curl -fsSL https://pi.dev/install.sh | sh
   agent-browser install --with-deps
 
   # Otpgen

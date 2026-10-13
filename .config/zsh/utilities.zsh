@@ -85,10 +85,6 @@ function agent-browser() {
 }
 
 # pi
-function pi() {
-  ASDF_NODEJS_VERSION=24.14.1 asdf exec pi "$@"
-}
-
 function pi-bb-review() {
   pi --offline --provider openai-codex --model gpt-6-astra --thinking xhigh "/bitbucket review $@"
 }
