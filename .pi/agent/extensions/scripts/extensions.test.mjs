@@ -13,8 +13,7 @@ const root = resolve(import.meta.dirname, "..");
 const temporary = await mkdtemp(join(tmpdir(), "pi-extension-tests-"));
 const cwd = join(temporary, "project");
 await mkdir(cwd);
-// Never use a caller's shared todo directory or start theme file watchers.
-process.env.PI_TODO_PATH = join(temporary, "todos");
+// Do not start theme file watchers.
 initTheme("dark", false);
 const paths = (await readdir(root))
   .filter((name) => name.endsWith(".ts"))
@@ -66,7 +65,7 @@ async function execute(definition, params, ctx = context(), signal) {
 test("all extensions load with the installed pi runtime", () => {
   assert.deepEqual(loaded.errors, []);
   assert.equal(loaded.extensions.length, paths.length);
-  assert.equal(loaded.extensions.flatMap((item) => [...item.tools]).length, 6);
+  assert.equal(loaded.extensions.flatMap((item) => [...item.tools]).length, 5);
 });
 
 test("terminal-only commands do not enter custom UI in RPC mode", async () => {
@@ -217,10 +216,6 @@ test("tool failures reject instead of returning successful error-shaped results"
     execute(tool("web-search", "fetch_url"), { url: "not-a-url" }),
     /Failed to fetch/,
   );
-  await assert.rejects(
-    execute(tool("todos", "todo"), { action: "get" }),
-    /id required/,
-  );
 });
 
 test("fetch_url forwards cancellation and honors already-aborted signals", async (t) => {
@@ -306,24 +301,4 @@ test("web renderers show both current and persisted legacy errors", () => {
       assert.match(component.render(80).join("\n"), /request failed/);
     }
   }
-});
-
-test("parallel todo appends preserve every update", async () => {
-  const ctx = context();
-  const todo = tool("todos", "todo");
-  const created = await execute(
-    todo,
-    { action: "create", title: "Parallel updates" },
-    ctx,
-  );
-  const id = created.details.todo.id;
-  await Promise.all(
-    ["first", "second", "third"].map((body) =>
-      execute(todo, { action: "append", id, body }, ctx),
-    ),
-  );
-  const result = await execute(todo, { action: "get", id }, ctx);
-  assert.match(result.details.todo.body, /first/);
-  assert.match(result.details.todo.body, /second/);
-  assert.match(result.details.todo.body, /third/);
 });
