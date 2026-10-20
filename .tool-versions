@@ -8,3 +8,4 @@ golang 1.26.2
 python 3.14.4
 terragrunt 0.99.4
 packer 1.15.3
+gcloud 590.0.0

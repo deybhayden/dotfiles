@@ -58,6 +58,11 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf plugin add awscli
   asdf install awscli 2.33.21
   asdf set -u awscli 2.33.21
+  asdf plugin add gcloud
+  asdf install gcloud 590.0.0
+  asdf set -u gcloud 590.0.0
+  gcloud components install gke-gcloud-auth-plugin --quiet
+  asdf reshim gcloud 590.0.0
   asdf plugin add github-cli
   asdf install github-cli 2.86.0
   asdf set -u github-cli 2.86.0
@@ -85,6 +90,7 @@ if ! command -v zsh >/dev/null 2>&1; then
 
   # Python
   echo "Installing uv tools"
+  uv tool install --python 3.13 --prerelease allow azure-cli==2.86.0
   uv tool install pre-commit
   uv tool install ruff
   uv tool install semgrep
