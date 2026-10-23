@@ -56,8 +56,8 @@ if ! command -v zsh >/dev/null 2>&1; then
 
   echo "Setting up asdf"
   asdf plugin add awscli
-  asdf install awscli 2.33.21
-  asdf set -u awscli 2.33.21
+  asdf install awscli 2.38.5
+  asdf set -u awscli 2.38.5
   asdf plugin add gcloud
   asdf install gcloud 590.0.0
   asdf set -u gcloud 590.0.0
@@ -70,8 +70,8 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf install golang 1.26.1
   asdf set -u golang 1.26.1
   asdf plugin add nodejs
-  asdf install nodejs 24.14.1
-  asdf set -u nodejs 24.14.1
+  asdf install nodejs 24.22.1
+  asdf set -u nodejs 24.22.1
   asdf plugin add terraform
   asdf install terraform 1.14.5
   asdf set -u terraform 1.14.5
@@ -82,11 +82,11 @@ if ! command -v zsh >/dev/null 2>&1; then
   asdf install terragrunt 0.99.4
   asdf set -u terragrunt 0.99.4
   asdf plugin add uv
-  asdf install uv 0.11.6
-  asdf set -u uv 0.11.6
+  asdf install uv 0.13.5
+  asdf set -u uv 0.13.5
   asdf plugin add python
-  asdf install python 3.14.4
-  asdf set -u python 3.14.4
+  asdf install python 3.14.9
+  asdf set -u python 3.14.9
 
   # Python
   echo "Installing uv tools"

@@ -1,11 +1,11 @@
-nodejs 24.14.1
-uv 0.11.6
-awscli 2.33.21
+nodejs 24.22.1
+uv 0.13.5
+awscli 2.38.5
 terraform 1.14.5
 terragrunt 0.99.4
 github-cli 2.86.0
 golang 1.26.2
-python 3.14.4
+python 3.14.9
 terragrunt 0.99.4
 packer 1.15.3
 gcloud 590.0.0
