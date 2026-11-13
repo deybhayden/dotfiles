@@ -43,10 +43,10 @@ if ! command -v zsh >/dev/null 2>&1; then
   stow -t ~ .
 
   # asdf
-  wget https://github.com/asdf-vm/asdf/releases/download/v0.18.0/asdf-v0.18.0-linux-amd64.tar.gz
-  tar xzf asdf-v0.18.0-linux-amd64.tar.gz
+  wget https://github.com/asdf-vm/asdf/releases/download/v0.20.2/asdf-v0.20.2-linux-amd64.tar.gz
+  tar xzf asdf-v0.20.2-linux-amd64.tar.gz
   mv asdf ~/.local/bin
-  rm asdf-v0.18.0-linux-amd64.tar.gz
+  rm asdf-v0.20.2-linux-amd64.tar.gz
   export ASDF_DATA_DIR="$HOME/.asdf"
   mkdir -p "$ASDF_DATA_DIR/completions"
   ~/.local/bin/asdf completion zsh > "$ASDF_DATA_DIR/completions/_asdf"
@@ -56,41 +56,41 @@ if ! command -v zsh >/dev/null 2>&1; then
 
   echo "Setting up asdf"
   asdf plugin add awscli
-  asdf install awscli 2.38.5
-  asdf set -u awscli 2.38.5
+  asdf install awscli 2.40.2
+  asdf set -u awscli 2.40.2
   asdf plugin add gcloud
-  asdf install gcloud 590.0.0
-  asdf set -u gcloud 590.0.0
+  asdf install gcloud 593.0.0
+  asdf set -u gcloud 593.0.0
   gcloud components install gke-gcloud-auth-plugin --quiet
-  asdf reshim gcloud 590.0.0
+  asdf reshim gcloud 593.0.0
   asdf plugin add github-cli
-  asdf install github-cli 2.86.0
-  asdf set -u github-cli 2.86.0
+  asdf install github-cli 2.104.0
+  asdf set -u github-cli 2.104.0
   asdf plugin add golang
-  asdf install golang 1.26.1
-  asdf set -u golang 1.26.1
+  asdf install golang 1.26.11
+  asdf set -u golang 1.26.11
   asdf plugin add nodejs
-  asdf install nodejs 24.22.1
-  asdf set -u nodejs 24.22.1
+  asdf install nodejs 24.22.3
+  asdf set -u nodejs 24.22.3
   asdf plugin add terraform
-  asdf install terraform 1.14.5
-  asdf set -u terraform 1.14.5
+  asdf install terraform 1.17.2
+  asdf set -u terraform 1.17.2
   asdf plugin add packer
-  asdf install packer 1.15.3
-  asdf set -u packer 1.15.3
+  asdf install packer 1.16.2
+  asdf set -u packer 1.16.2
   asdf plugin add terragrunt
-  asdf install terragrunt 0.99.4
-  asdf set -u terragrunt 0.99.4
+  asdf install terragrunt 0.99.5
+  asdf set -u terragrunt 0.99.5
   asdf plugin add uv
-  asdf install uv 0.13.5
-  asdf set -u uv 0.13.5
+  asdf install uv 0.13.8
+  asdf set -u uv 0.13.8
   asdf plugin add python
-  asdf install python 3.14.9
-  asdf set -u python 3.14.9
+  asdf install python 3.14.10
+  asdf set -u python 3.14.10
 
   # Python
   echo "Installing uv tools"
-  uv tool install --python 3.13 --prerelease allow azure-cli==2.86.0
+  uv tool install --python 3.13 --prerelease allow azure-cli==2.92.0
   uv tool install pre-commit
   uv tool install ruff
   uv tool install semgrep
