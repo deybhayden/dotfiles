@@ -239,6 +239,7 @@ Skills provide task-specific instructions that the agent loads when needed. Loca
 | ------------------- | ------------------------------------------------------------------------------ |
 | **commit**          | Guidance for making git commits.                                               |
 | **frontend-design** | Direction for designing and implementing production-ready frontend interfaces. |
+| **prune-tests**     | Prune tests that guard no behavior.                                             |
 | **uv**              | Instructions for using `uv` for Python dependency and script management.       |
 | **vscode**          | Notes on using VS Code integration for viewing diffs and comparing files.      |
 | **web-browser**     | Steps for remote-controlling Chrome via CDP for web browsing tasks.            |
